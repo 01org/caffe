@@ -1,8 +1,7 @@
 #ifndef CPU_ONLY
-#ifdef USE_FFT
 #include <map>
 #include "caffe/common.hpp"
-#ifdef USE_GREENTEA
+#if defined(USE_GREENTEA) && defined(USE_FFT)
 #include "caffe/util/cl_fft_state.hpp"
 
 namespace caffe {
@@ -268,6 +267,5 @@ clfftPlanHandle ClFFTState::createInPlaceManyPlanHandle(int height, int width,
 }
 
 }  // namespace caffe
-#endif //USE_GREENTEA
-#endif  // USE_FFT
+#endif //USE_GREENTEA && USE_FFT
 #endif // CPU_ONLY

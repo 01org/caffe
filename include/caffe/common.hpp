@@ -152,10 +152,8 @@ class Caffe {
     return Get().curand_generator64_;
   }
 #endif  // USE_CUDA
-#ifdef USE_GREENTEA
-#ifdef USE_FFT
+#if defined(USE_GREENTEA) && defined(USE_FFT)
   inline static ClFFTState& cl_fft_state() { return Get().cl_fft_state_; }
-#endif //USE FFT
 #endif //USE_GREENTEA
 #endif  // !CPU_ONLY
 
@@ -212,10 +210,8 @@ class Caffe {
   curandGenerator_t curand_generator_;
   curandGenerator_t curand_generator64_;
 #endif  // USE_CUDA
-#ifdef USE_GREENTEA
-#ifdef USE_FFT
+#if defined(USE_GREENTEA) && defined(USE_FFT)
   ClFFTState cl_fft_state_;
-#endif
 #endif
 #endif  // !CPU_ONLY
   shared_ptr<RNG> random_generator_;

@@ -1,7 +1,6 @@
 #include "caffe/common.hpp"
 #ifndef CPU_ONLY
-#ifdef USE_GREENTEA
-#ifdef USE_FFT
+#if defined(USE_GREENTEA) && defined(USE_FFT)
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -33,67 +32,15 @@ void kernel_execution_time(cl_event* event, const char* kernel_name) {
 void clear_gpu_fft_buffer(void* data, const int size) {
   device *dc = Caffe::GetDefaultDevice();
   greentea_memset(dc->id(), size, 0, (cl_mem) data, 0);
-/*
-  viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  viennacl::ocl::command_queue &queue = ctx.get_queue();
-  //cl_command_queue queue = ctx.get_queue().handle().get();
-  ClMemOff<uint8_t> buf_data = state.get_buffer_mem(data);
-  void* mapped_mem_ptr = clEnqueueMapBuffer(queue, buf_data.memobj, CL_TRUE,
-      CL_MAP_WRITE, 0, size, 0, NULL, NULL, NULL);
-  memset(mapped_mem_ptr, 0, size);
-  clEnqueueUnmapMemObject(queue, buf_data.memobj, mapped_mem_ptr, 0, NULL,
-      NULL);
-*/
 }
-
-/*
-template <typename Dtype>
-void get_aligned_offset(size_t* aligned_offset, int* offset_offset,
-    const Dtype* data) {
-  viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  ClMemOff<Dtype> buf_data = state.get_buffer_mem(data);
-  uint mem_base_address_align =
-      (state.get_properties().mem_base_addr_align / 8) / sizeof(Dtype);
-  *aligned_offset = static_cast<int>(buf_data.offset /
-      static_cast<float>(mem_base_address_align)) * mem_base_address_align;
-  *offset_offset = ((buf_data.offset /
-      static_cast<float>(mem_base_address_align)) - *aligned_offset /
-      mem_base_address_align) * mem_base_address_align;
-}
-template void get_aligned_offset<float>(size_t* aligned_offset,
-    int* offset_offset, const float* data);
-template void get_aligned_offset<double>(size_t* aligned_offset,
-    int* offset_offset, const double* data);
-
-template <typename Dtype>
-void get_aligned_offset(size_t* aligned_offset, int* offset_offset,
-    const DtypeComplex<Dtype>* data) {
-  viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  ClMemOff< DtypeComplex<Dtype> > buf_data = state.get_buffer_mem(data);
-  uint mem_base_address_align =
-      (state.get_properties().mem_base_addr_align / 8) /
-      sizeof(DtypeComplex<Dtype>);
-  *aligned_offset = static_cast<int>(buf_data.offset /
-      static_cast<float>(mem_base_address_align)) * mem_base_address_align;
-  *offset_offset = ((buf_data.offset /
-      static_cast<float>(mem_base_address_align)) - *aligned_offset /
-      mem_base_address_align) * mem_base_address_align;
-}
-template void get_aligned_offset<float>(size_t* aligned_offset,
-    int* offset_offset, const DtypeComplex<float>* data);
-template void get_aligned_offset<double>(size_t* aligned_offset,
-    int* offset_offset, const DtypeComplex<double>* data);
-*/
 
 // Copy and cyclic-shift 0 padding of weights to FFT real buffer
 template <typename Dtype>
 void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
     int num_output, int group, int channels, int ker_h, int ker_w,
     int ker_c_h, int ker_c_w, int fft_height, int fft_width) {
-  //viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
+
 
   //size_t aligned_offset_fft_gpu_weights_real;
   int offset_offset_fft_gpu_weights_real = 0;
@@ -115,7 +62,6 @@ void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
   int argIdx = 0;
   const int ker_size = ker_h * ker_w;
   const int complex_width_len = 2*(fft_width/2 + 1);
-  //viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_in");
   viennacl::ocl::kernel & kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_in");
   kernel.arg(argIdx++, WrapHandle((cl_mem)fft_gpu_weights_real, &ctx));
   kernel.arg(argIdx++, offset_offset_fft_gpu_weights_real);
@@ -139,8 +85,6 @@ void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 1, NULL,
       &global_work_size, NULL, 0, NULL, NULL));
 #endif
-  //clReleaseMemObject(mem_fft_gpu_weights_real);
-  //clReleaseMemObject(mem_weight);
 }
 template void fft_gpu_copy2buffer<float>(float* fft_gpu_weights_real,
     const float* weight, int num_output, int group, int channels,
@@ -152,83 +96,12 @@ template void fft_gpu_copy2buffer<double>(double* fft_gpu_weights_real,
     int fft_height, int fft_width);
 
 // Copy and left-top 0 padding of data to FFT real buffer
-/*
-template <typename Dtype>
-void fft_gpu_copy2buffer_in(Dtype* map_out, const Dtype* map_in,
-    int height_out, int width_out, int height, int width,
-    int stride_h, int stride_w, int pad_h, int pad_w) {
-  viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  submit_program(state);
-
-  ClMemOff<Dtype> buf_map_out = state.get_buffer_mem(map_out);
-  ClMemOff<Dtype> buf_map_in = state.get_buffer_mem(map_in);
-
-  size_t aligned_offset_map_out;
-  int offset_offset_map_out;
-  get_aligned_offset(&aligned_offset_map_out, &offset_offset_map_out, map_out);
-  cl_mem mem_map_out = state.create_subbuffer(map_out, aligned_offset_map_out);
-
-  size_t aligned_offset_map_in;
-  int offset_offset_map_in;
-  get_aligned_offset(&aligned_offset_map_in, &offset_offset_map_in, map_in);
-  cl_mem mem_map_in = state.create_subbuffer(map_in, aligned_offset_map_in);
-
-  int size = height * width;
-  const size_t global_work_size = size;
-  viennacl::ocl::kernel kernel;
-  if (width < 4) {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_in_naive");
-  } else {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_in");
-  }
-  int argIdx = 0;
-  kernel.arg(argIdx++, mem_map_out);
-  kernel.arg(argIdx++, offset_offset_map_out);
-  kernel.arg(argIdx++, mem_map_in);
-  kernel.arg(argIdx++, offset_offset_map_in);
-  kernel.arg(argIdx++, size);
-  kernel.arg(argIdx++, height_out);
-  kernel.arg(argIdx++, width_out);
-  kernel.arg(argIdx++, height);
-  kernel.arg(argIdx++, width);
-  kernel.arg(argIdx++, stride_h);
-  kernel.arg(argIdx++, stride_w);
-  kernel.arg(argIdx++, pad_h);
-  kernel.arg(argIdx++, pad_w);
-#ifdef DEBUG_PROFILE
-  cl_event event = 0;
-  OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel, 1, NULL,
-      &global_work_size, NULL, 0, NULL, &event));
-  if (width < 4)
-    kernel_execution_time(&event, "copy2buffer_left_top_in_naive");
-  else
-    kernel_execution_time(&event, "copy2buffer_left_top_in");
-#else
-  OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel, 1, NULL,
-      &global_work_size, NULL, 0, NULL, NULL));
-#endif
-
-  clReleaseMemObject(mem_map_out);
-  clReleaseMemObject(mem_map_in);
-}
-template void fft_gpu_copy2buffer_in<float>(float* map_out, const float* map_in,
-    int height_out, int width_out, int height, int width,
-    int stride_h, int stride_w, int pad_h, int pad_w);
-template void fft_gpu_copy2buffer_in<double>(double* map_out,
-    const double* map_in,
-    int height_out, int width_out, int height, int width,
-    int stride_h, int stride_w, int pad_h, int pad_w);
-*/
-
-// Copy and left-top 0 padding of data to FFT real buffer
 template <typename Dtype>
 void fft_gpu_copy2buffer_in_2D(Dtype* map_out, const Dtype* map_in, int in_offset,
     int channels, int height_out, int width_out, int height, int width,
     int stride_h, int stride_w, int pad_h, int pad_w) {
-  //viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
+
 
   //size_t aligned_offset_map_out;
   int offset_offset_map_out = 0;
@@ -278,9 +151,6 @@ void fft_gpu_copy2buffer_in_2D(Dtype* map_out, const Dtype* map_in, int in_offse
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_map_out);
-  //clReleaseMemObject(mem_map_in);
 }
 template void fft_gpu_copy2buffer_in_2D<float>(float* map_out,
     const float* map_in, int in_offset, int channels,
@@ -290,81 +160,6 @@ template void fft_gpu_copy2buffer_in_2D<double>(double* map_out,
     const double* map_in, int in_offset, int channels,
     int height_out, int width_out, int height, int width,
     int stride_h, int stride_w, int pad_h, int pad_w);
-
-// Copy from left-top 0 padded data to real buffer
-/*
-template <typename Dtype>
-void fft_gpu_copy2buffer_out_forward(Dtype* map_out, const Dtype* map_in,
-    int height_out, int width_out, int fft_height, int fft_width,
-    int kernel_center_h, int kernel_center_w,
-    int stride_h, int stride_w, int pad_h, int pad_w) {
-  viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  submit_program(state);
-
-  ClMemOff<Dtype> buf_map_out = state.get_buffer_mem(map_out);
-  ClMemOff<Dtype> buf_map_in = state.get_buffer_mem(map_in);
-
-  size_t aligned_offset_map_out;
-  int offset_offset_map_out;
-  get_aligned_offset(&aligned_offset_map_out, &offset_offset_map_out, map_out);
-  cl_mem mem_map_out = state.create_subbuffer(map_out, aligned_offset_map_out);
-
-  size_t aligned_offset_map_in;
-  int offset_offset_map_in;
-  get_aligned_offset(&aligned_offset_map_in, &offset_offset_map_in, map_in);
-  cl_mem mem_map_in = state.create_subbuffer(map_in, aligned_offset_map_in);
-
-  int size = height_out * width_out;
-  const size_t global_work_size = size;
-  viennacl::ocl::kernel kernel;
-  if (width_out < 4) {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_out_naive");
-  } else {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_out");
-  }
-  int argIdx = 0;
-  kernel.arg(argIdx++, mem_map_out);
-  kernel.arg(argIdx++, offset_offset_map_out);
-  kernel.arg(argIdx++, mem_map_in);
-  kernel.arg(argIdx++, offset_offset_map_in);
-  kernel.arg(argIdx++, size);
-  kernel.arg(argIdx++, height_out);
-  kernel.arg(argIdx++, width_out);
-  kernel.arg(argIdx++, fft_height);
-  kernel.arg(argIdx++, fft_width);
-  kernel.arg(argIdx++, kernel_center_h);
-  kernel.arg(argIdx++, kernel_center_w);
-  kernel.arg(argIdx++, stride_h);
-  kernel.arg(argIdx++, stride_w);
-  kernel.arg(argIdx++, pad_h);
-  kernel.arg(argIdx++, pad_w);
-#ifdef DEBUG_PROFILE
-  cl_event event = 0;
-  OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel, 1, NULL,
-      &global_work_size, NULL, 0, NULL, &event));
-  if (width_out < 4)
-    kernel_execution_time(&event, "copy2buffer_left_top_out_naive");
-  else
-    kernel_execution_time(&event, "copy2buffer_left_top_out");
-#else
-  OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel, 1, NULL,
-      &global_work_size, NULL, 0, NULL, NULL));
-#endif
-
-  clReleaseMemObject(mem_map_out);
-  clReleaseMemObject(mem_map_in);
-}
-template void fft_gpu_copy2buffer_out_forward<float>(float* map_out,
-    const float* map_in,
-    int height_out, int width_out, int fft_height, int fft_width,
-    int kernel_center_h, int kernel_center_w,
-    int stride_h, int stride_w, int pad_h, int pad_w);
-template void fft_gpu_copy2buffer_out_forward<double>(double* map_out,
-    const double* map_in,
-    int height_out, int width_out, int fft_height, int fft_width,
-    int kernel_center_h, int kernel_center_w,
-    int stride_h, int stride_w, int pad_h, int pad_w);
-*/
 
 // Copy from left-top 0 padded data to real buffer
 template <typename Dtype>
@@ -428,9 +223,6 @@ void fft_gpu_copy2buffer_out_forward_2D(Dtype* map_out, int out_offset, const Dt
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_map_out);
-  //clReleaseMemObject(mem_map_in);
 }
 template void fft_gpu_copy2buffer_out_forward_2D<float>(float* map_out, int out_offset,
     const float* map_in, int num_output,
@@ -449,17 +241,10 @@ void fft_gpu_copy2buffer_out_backward(Dtype* map_out, const Dtype* map_in,
     int kernel_center_h, int kernel_center_w,
     int stride_h, int stride_w, int pad_h, int pad_w) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
   //size_t aligned_offset_map_out;
   int offset_offset_map_out = 0;
-  //get_aligned_offset(&aligned_offset_map_out, &offset_offset_map_out, map_out);
-  //cl_mem mem_map_out = state.create_subbuffer(map_out, aligned_offset_map_out);
-
-  //size_t aligned_offset_map_in;
   int offset_offset_map_in = 0;
-  //get_aligned_offset(&aligned_offset_map_in, &offset_offset_map_in, map_in);
-  //cl_mem mem_map_in = state.create_subbuffer(map_in, aligned_offset_map_in);
 
   const size_t global_work_size = height_out * width_out;
   viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_out");
@@ -486,9 +271,6 @@ void fft_gpu_copy2buffer_out_backward(Dtype* map_out, const Dtype* map_in,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 1, NULL,
       &global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_map_out);
-  //clReleaseMemObject(mem_map_in);
 }
 template void fft_gpu_copy2buffer_out_backward<float>(float* map_out,
     const float* map_in,
@@ -507,17 +289,12 @@ void fft_gpu_copy2buffer_out_backward_2D(Dtype* map_out, int out_offset, const D
     int kernel_center_h, int kernel_center_w,
     int stride_h, int stride_w, int pad_h, int pad_w) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
   //size_t aligned_offset_map_out;
   int offset_offset_map_out = out_offset;
-  //get_aligned_offset(&aligned_offset_map_out, &offset_offset_map_out, map_out);
-  //cl_mem mem_map_out = state.create_subbuffer(map_out, aligned_offset_map_out);
 
   //size_t aligned_offset_map_in;
   int offset_offset_map_in = 0;
-  //get_aligned_offset(&aligned_offset_map_in, &offset_offset_map_in, map_in);
-  //cl_mem mem_map_in = state.create_subbuffer(map_in, aligned_offset_map_in);
 
   int map_out_size = height_out * width_out;
   int map_in_size = fft_height * fft_width;
@@ -548,9 +325,6 @@ void fft_gpu_copy2buffer_out_backward_2D(Dtype* map_out, int out_offset, const D
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_map_out);
-  //clReleaseMemObject(mem_map_in);
 }
 template void fft_gpu_copy2buffer_out_backward_2D<float>(float* map_out, int out_offset,
     const float* map_in, int channels,
@@ -569,22 +343,10 @@ void caffe_gpu_elementMulConj_1D(DtypeComplex<Dtype>* dst,
     const int map_size, const int ch_gr) {
   // Note: map_size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
-
-  //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
+
 
   const size_t global_work_size = map_size >> 1;
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_1d");
@@ -605,10 +367,6 @@ void caffe_gpu_elementMulConj_1D(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 1, NULL,
       &global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_1D<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -623,22 +381,6 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
     const int out_gr, const int map_size, const int ch_gr) {
   // Note: map_size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
-
-  //size_t aligned_offset_dst;
-  //int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
-  //int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
-  //int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   cl_command_queue queue = ctx.get_queue().handle().get();
   size_t block_size = map_size * ch_gr * sizeof(DtypeComplex<Dtype>);
@@ -680,9 +422,6 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
       global_work_size2, NULL, 0, NULL, NULL));
 #endif
   clReleaseMemObject(src1_vec);
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_Reshape<float>(
     DtypeComplex<float>* dst,
@@ -699,22 +438,12 @@ void caffe_gpu_elementMulConj_2D(DtypeComplex<Dtype>* dst, int dst_offset,
     const int out_gr, const int map_size, const int ch_gr) {
   // Note: map_size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
   //size_t aligned_offset_dst;
   int offset_offset_dst = dst_offset;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = src1_offset;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = src2_offset;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
+
 
   const size_t global_work_size[2] = { (size_t)map_size >> 1, (size_t)out_gr };
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_2d");
@@ -737,10 +466,6 @@ void caffe_gpu_elementMulConj_2D(DtypeComplex<Dtype>* dst, int dst_offset,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_2D<float>(DtypeComplex<float>* dst, int dst_offset,
     const DtypeComplex<float>* src1, int src1_offset, const DtypeComplex<float>* src2, int src2_offset,
@@ -755,22 +480,12 @@ void caffe_gpu_elementMulConj_2D_SLM(DtypeComplex<Dtype>* dst,
     const int out_gr, const int map_size, const int ch_gr) {
   // Note: size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
   //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
+
 
   int map_float4_size = map_size >> 1;
   // Note:
@@ -813,10 +528,6 @@ void caffe_gpu_elementMulConj_2D_SLM(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, local_work_size, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_2D_SLM<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -831,22 +542,11 @@ void caffe_gpu_elementMulConj_3D(DtypeComplex<Dtype>* dst,
     const int out_gr, const int map_size, const int ch_gr) {
   // Note: map_size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
   //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   const size_t global_work_size[3] = { (size_t)map_size >> 1, (size_t)out_gr, (size_t)ch_gr };
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_3d");
@@ -869,10 +569,6 @@ void caffe_gpu_elementMulConj_3D(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 3, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_3D<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -887,22 +583,10 @@ void caffe_gpu_elementMulConj_3D_SLM(DtypeComplex<Dtype>* dst,
     const int out_gr, const int map_size, const int ch_gr) {
   // Note: size is the number of DtypeComplex values
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
-  //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   int map_float4_size = map_size >> 1;
   // Note:
@@ -947,10 +631,6 @@ void caffe_gpu_elementMulConj_3D_SLM(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 3, NULL,
       global_work_size, local_work_size, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMulConj_3D_SLM<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -968,18 +648,8 @@ void caffe_gpu_elementMul_1D(DtypeComplex<Dtype>* dst,
 
   //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   const size_t global_work_size = size >> 1;  // # of Dtype4
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_multiplication_1d");
@@ -1001,10 +671,6 @@ void caffe_gpu_elementMul_1D(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 1, NULL,
       &global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMul_1D<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -1018,22 +684,10 @@ void caffe_gpu_elementMul_2D_SLM(DtypeComplex<Dtype>* dst,
     const DtypeComplex<Dtype>* src1, const DtypeComplex<Dtype>* src2,
     const int size, const int ch_gr, const int num_output) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
-  //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   // (16,2)=6K, (8,4)=1.5K work for CaffeNet
   // (128, 4) is perf hint recommended
@@ -1071,10 +725,6 @@ void caffe_gpu_elementMul_2D_SLM(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 2, NULL,
       global_work_size, local_work_size, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMul_2D_SLM<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -1088,22 +738,10 @@ void caffe_gpu_elementMul_3D(DtypeComplex<Dtype>* dst,
     const DtypeComplex<Dtype>* src1, const DtypeComplex<Dtype>* src2,
     const int size, const int ch_gr, const int out_gr, const int num_output) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
 
-  //size_t aligned_offset_dst;
   int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src1;
   int offset_offset_src1 = 0;
-  //get_aligned_offset(&aligned_offset_src1, &offset_offset_src1, src1);
-  //cl_mem mem_src1 = state.create_subbuffer(src1, aligned_offset_src1);
-
-  //size_t aligned_offset_src2;
   int offset_offset_src2 = 0;
-  //get_aligned_offset(&aligned_offset_src2, &offset_offset_src2, src2);
-  //cl_mem mem_src2 = state.create_subbuffer(src2, aligned_offset_src2);
 
   // Dim 1: # of Dtype2
   const size_t global_work_size[3] = { (size_t)size, (size_t)ch_gr, (size_t)num_output };
@@ -1128,10 +766,6 @@ void caffe_gpu_elementMul_3D(DtypeComplex<Dtype>* dst,
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel.handle().get(), 3, NULL,
       global_work_size, NULL, 0, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_dst);
-  //clReleaseMemObject(mem_src1);
-  //clReleaseMemObject(mem_src2);
 }
 template void caffe_gpu_elementMul_3D<float>(DtypeComplex<float>* dst,
     const DtypeComplex<float>* src1, const DtypeComplex<float>* src2,
@@ -1146,12 +780,6 @@ void caffe_gpu_fft_execute_r2c(clfftPlanHandle plan, const Dtype* in,
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
   cl_command_queue queue = ctx.get_queue().handle().get();
 
-  //ClMemOff<Dtype> buf_in = state.get_buffer_mem(in);
-  //ClMemOff< DtypeComplex<Dtype> > buf_out = state.get_buffer_mem(out);
-
-  //cl_mem mem_in = state.create_subbuffer(in, buf_in.offset);
-  //cl_mem mem_out = state.create_subbuffer(out, buf_out.offset);
-
 #ifdef DEBUG_PROFILE
   cl_event event = 0;
   CLFFT_CHECK(clfftEnqueueTransform(plan, CLFFT_FORWARD, 1, &queue,
@@ -1161,9 +789,6 @@ void caffe_gpu_fft_execute_r2c(clfftPlanHandle plan, const Dtype* in,
   CLFFT_CHECK(clfftEnqueueTransform(plan, CLFFT_FORWARD, 1, &queue,
       0, NULL, NULL, (cl_mem*)&in, (cl_mem*)&out, NULL));
 #endif
-
-  //clReleaseMemObject(mem_in);
-  //clReleaseMemObject(mem_out);
 }
 template void caffe_gpu_fft_execute_r2c<float>(clfftPlanHandle plan,
     const float* in, DtypeComplex<float>* out);
@@ -1176,12 +801,6 @@ void caffe_gpu_fft_execute_c2r(clfftPlanHandle plan,
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
   cl_command_queue queue = ctx.get_queue().handle().get();
 
-  //ClMemOff< DtypeComplex<Dtype> > buf_in = state.get_buffer_mem(in);
-  //ClMemOff<Dtype> buf_out = state.get_buffer_mem(out);
-
-  //cl_mem mem_in = state.create_subbuffer(in, buf_in.offset);
-  //cl_mem mem_out = state.create_subbuffer(out, buf_out.offset);
-
 #ifdef DEBUG_PROFILE
   cl_event event = 0;
   CLFFT_CHECK(clfftEnqueueTransform(plan, CLFFT_BACKWARD, 1, &queue,
@@ -1192,8 +811,6 @@ void caffe_gpu_fft_execute_c2r(clfftPlanHandle plan,
       0, NULL, NULL, (cl_mem*)&in, (cl_mem*)&out, NULL));
 #endif
 
-  //clReleaseMemObject(mem_in);
-  //clReleaseMemObject(mem_out);
 }
 template void caffe_gpu_fft_execute_c2r<float>(clfftPlanHandle plan,
     const DtypeComplex<float>* in, float* out);
@@ -1205,9 +822,6 @@ void caffe_gpu_fft_execute_r2c_inplace(clfftPlanHandle plan, Dtype* inout) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
   cl_command_queue queue = ctx.get_queue().handle().get();
 
-  //ClMemOff<Dtype> buf_inout = state.get_buffer_mem(inout);
-  //cl_mem mem_inout = state.create_subbuffer(inout, buf_inout.offset);
-
 #ifdef DEBUG_PROFILE
   cl_event event = 0;
   CLFFT_CHECK(clfftEnqueueTransform(plan, CLFFT_FORWARD, 1, &queue,
@@ -1217,8 +831,6 @@ void caffe_gpu_fft_execute_r2c_inplace(clfftPlanHandle plan, Dtype* inout) {
   CLFFT_CHECK(clfftEnqueueTransform(plan, CLFFT_FORWARD, 1, &queue,
       0, NULL, NULL, (cl_mem*)&inout, NULL, NULL));
 #endif
-
-  //clReleaseMemObject(mem_inout);
 }
 template void caffe_gpu_fft_execute_r2c_inplace<float>(
     clfftPlanHandle plan, float* inout);
@@ -1229,17 +841,6 @@ template <typename Dtype>
 void reshape_weights(DtypeComplex<Dtype>* dst, DtypeComplex<Dtype>* src,
     const int size, const int num_output, const int ch_gr) {
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
-  //submit_program(&ctx);
-
-  //size_t aligned_offset_dst;
-  //int offset_offset_dst = 0;
-  //get_aligned_offset(&aligned_offset_dst, &offset_offset_dst, dst);
-  //cl_mem mem_dst = state.create_subbuffer(dst, aligned_offset_dst);
-
-  //size_t aligned_offset_src;
-  //int offset_offset_src = 0;
-  //get_aligned_offset(&aligned_offset_src, &offset_offset_src, src);
-  //cl_mem mem_src = state.create_subbuffer(src, aligned_offset_src);
 
   cl_command_queue queue = ctx.get_queue().handle().get();
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "convert_weight_to_channel_major");
@@ -1268,6 +869,5 @@ template void reshape_weights<double>(DtypeComplex<double>* dst,
     const int size, const int num_output, const int ch_gr);
 
 }  // namespace caffe
-#endif  // USE_FFT
-#endif  // USE_GREENTEA
+#endif  // USE_GREENTEA && USE_FFT
 #endif  // !CPU_ONLY

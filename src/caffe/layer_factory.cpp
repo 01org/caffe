@@ -69,9 +69,11 @@ shared_ptr<Layer<Dtype> > GetConvolutionLayer(const LayerParameter& param) {
     if (engine == ConvolutionParameter_Engine_INTEL_SPATIAL)
       return shared_ptr<Layer<Dtype> >
                (new ConvolutionLayerSpatial<Dtype>(param));
+#ifdef USE_FFT
     if (engine == ConvolutionParameter_Engine_FFT)
       return shared_ptr<Layer<Dtype> >
                (new ConvolutionLayerFFT<Dtype>(param));
+#endif
     return shared_ptr<Layer<Dtype> >(new ConvolutionLayer<Dtype>(param));
 #ifdef USE_CUDNN
   } else if (engine == ConvolutionParameter_Engine_CUDNN) {

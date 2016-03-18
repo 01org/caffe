@@ -3,9 +3,8 @@
 #ifdef CMAKE_BUILD
 #include <caffe_config.h>
 #endif
-#ifdef USE_FFT
 #ifndef CPU_ONLY
-#ifdef USE_GREENTEA
+#if defined(USE_GREENTEA) && defined(USE_FFT)
 #include <clFFT.h>
 #include <map>
 #include <utility>
@@ -51,8 +50,7 @@ class ClFFTState {
 
 }  // namespace caffe
 
-#endif //USE_GREENTEA
+#endif //USE_GREENTEA && USE_FFT
 #endif //CPU_ONLY
-#endif  // USE_FFT
 #endif  // CAFFE_UTIL_CL_FFT_HELPER_H_
 

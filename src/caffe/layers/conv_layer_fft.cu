@@ -1,7 +1,6 @@
 #ifndef CPU_ONLY
-#ifdef USE_FFT
 #include "caffe/util/fft.hpp"
-#ifdef USE_GREENTEA
+#if defined(USE_GREENTEA) && defined(USE_FFT)
 #include <algorithm>
 #include <vector>
 #include "caffe/filler.hpp"
@@ -60,9 +59,6 @@ void ConvolutionLayerFFT<Dtype>::fft_gpu_setup() {
   LOG(INFO) << "FFT buffers - memory needed = "
             << ((Dtype)layerMemoryBytes / (1024.f * 1024.f)) << " MB";
 
-  //fft_gpu_weights_complex_ = state.create_buffer(CL_MEM_READ_WRITE,
-  //    fft_gpu_weights_complex_bytes, NULL);
-
   cl_int cl_err;
   fft_gpu_weights_complex_ = clCreateBuffer(ctx.handle().get(), CL_MEM_READ_WRITE,
       fft_gpu_weights_complex_bytes, NULL, &cl_err);
@@ -113,8 +109,6 @@ void ConvolutionLayerFFT<Dtype>::fft_gpu_setup() {
 template <typename Dtype>
 void ConvolutionLayerFFT<Dtype>::fft_gpu_clean() {
   if (fft_gpu_initialized_) {
-    //ClState& state = Caffe::cl_state();
-    //viennacl::ocl::context &ctx = viennacl::ocl::current_context();
     clReleaseMemObject((cl_mem)fft_gpu_weights_complex_);
 #ifdef COMPLEX_NULT_CONJ_RESHAPE
     clReleaseMemObject(fft_gpu_weights_complex_reshape_);
@@ -304,8 +298,6 @@ void ConvolutionLayerFFT<Dtype>::Forward_gpu_fft(const vector<Blob<Dtype>*>& bot
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();
     for (int n = 0; n < this->num_; ++n) {
-     // Forward_gpu_fft_task(bottom_data, 0/*n * this->bottom_dim_*/, top_data, 0
-     //     /*n * this->top_dim_*/, n, ch_gr, out_gr);
       Forward_gpu_fft_task(bottom_data, n * this->bottom_dim_, top_data,
                            n * this->top_dim_, n, ch_gr, out_gr);
     }
@@ -327,10 +319,10 @@ void ConvolutionLayerFFT<Dtype>::Backward_gpu_fft_task(const vector<Blob<Dtype>*
   Dtype* bottom_diff = bottom[i]->mutable_gpu_diff();
 
   // Clear buffers
-  //clear_gpu_fft_buffer(fft_gpu_map_in_real_all_num_output_,
-  //    fft_map_real_size_ * this->num_output_ * sizeof(Dtype));
-  //clear_gpu_fft_buffer(fft_gpu_map_out_complex_,
-  //    this->channels_ * fft_map_complex_size_ * sizeof(DtypeComplex<Dtype>));
+  clear_gpu_fft_buffer(fft_gpu_map_in_real_all_num_output_,
+      fft_map_real_size_ * this->num_output_ * sizeof(Dtype));
+  clear_gpu_fft_buffer(fft_gpu_map_out_complex_,
+      this->channels_ * fft_map_complex_size_ * sizeof(DtypeComplex<Dtype>));
 
   // Left-top 0-padding of top data
   fft_gpu_copy2buffer_in_2D(
@@ -490,6 +482,5 @@ template void ConvolutionLayerFFT<double>::Backward_gpu_fft_task(
 INSTANTIATE_LAYER_GPU_FUNCS(ConvolutionLayerFFT);
 
 }  // namespace caffe
-#endif // USE_GREENTEA
-#endif  // USE_FFT
+#endif // USE_GREENTEA && USE_FFT
 #endif  // !CPU_ONLY
