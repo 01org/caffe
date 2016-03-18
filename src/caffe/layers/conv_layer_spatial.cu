@@ -320,10 +320,10 @@ void ConvolutionLayerSpatial<float>::swizzleWeights(int_tp swizzle_factor) {
   const size_t global_work_size_Copy[3] = { (size_t) (num_output_ * channels
       * kernel_w_ * kernel_h_), 1, 1 };
 
-  uint_tp err = clEnqueueNDRangeKernel(ctx.get_queue().handle().get(),
+  OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(),
                                        oclk_copy_weight.handle().get(), 3, NULL,
                                        global_work_size_Copy, NULL, 0, NULL,
-                                       NULL);
+                                       NULL));
 }
 
 template<>
@@ -449,9 +449,7 @@ bool ConvolutionLayerSpatial<float>::create_basic_kernel(
 
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
   try {
-    viennacl::ocl::program & program = submit_conv_spatial_program(&ctx,
-                                                                   kernel_name_,
-                                                                   options);
+    submit_conv_spatial_program(&ctx, kernel_name_, options);
   } catch (std::exception& e) {
     dbgPrint(std::cout << "Basic kernel generation failed" << std::endl);
     return false;
@@ -500,8 +498,7 @@ bool ConvolutionLayerSpatial<float>::create_verification_kernel(
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
 
   try {
-    viennacl::ocl::program & program = submit_conv_spatial_program(
-        &ctx, verification_kernel, options);
+    submit_conv_spatial_program(&ctx, verification_kernel, options);
   } catch (std::exception& e) {
     dbgPrint(
         std::cout << "Verification kernel generation failed" << std::endl);

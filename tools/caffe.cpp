@@ -126,6 +126,12 @@ int device_query() {
       caffe::Caffe::SetDevice(gpus[i]);
       caffe::Caffe::DeviceQuery();
     }
+#ifdef USE_GREENTEA
+  if (gpus.size() > 0 && gpus[0] >= 0) {
+    // Explicitly call for OCL + FFT
+    caffe::Caffe::TeardownDevice(gpus[0]);
+  }
+#endif //USE_GREENTEA
 #endif  // !CPU_ONLY
   }
   return 0;
@@ -235,6 +241,13 @@ int train() {
     solver->Solve();
   }
   LOG(INFO) << "Optimization Done.";
+
+#ifdef USE_GREENTEA
+  if (gpus.size() > 0 && gpus[0] >= 0) {
+    // Explicitly call for OCL + FFT
+    caffe::Caffe::TeardownDevice(gpus[0]);
+  }
+#endif
   return 0;
 }
 RegisterBrewFunction(train);
@@ -304,6 +317,12 @@ int test() {
     }
     LOG(INFO) << output_name << " = " << mean_score << loss_msg_stream.str();
   }
+#ifdef USE_GREENTEA
+  if (gpus.size() > 0 && gpus[0] >= 0) {
+    // Explicitly call for OCL + FFT
+    caffe::Caffe::TeardownDevice(gpus[0]);
+  }
+#endif
 
   return 0;
 }
@@ -400,6 +419,13 @@ int time() {
     FLAGS_iterations << " ms.";
   LOG(INFO) << "Total Time: " << total_timer.MilliSeconds() << " ms.";
   LOG(INFO) << "*** Benchmark ends ***";
+
+#ifdef USE_GREENTEA
+  if (gpus.size() > 0 && gpus[0] >= 0) {
+    // Explicitly call for OCL + FFT
+    caffe::Caffe::TeardownDevice(gpus[0]);
+  }
+#endif
   return 0;
 }
 RegisterBrewFunction(time);
