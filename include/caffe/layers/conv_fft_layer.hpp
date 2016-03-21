@@ -42,12 +42,16 @@ class ConvolutionLayerFFT : public BaseConvolutionLayer<Dtype> {
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
                            const vector<Blob<Dtype>*>& top);
+#ifdef USE_GREENTEA
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                            const vector<Blob<Dtype>*>& top);
+#endif
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
                             const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+#ifdef USE_GREENTEA
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
                             const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+#endif
 
   virtual inline bool reverse_dimensions() { return false; }
   virtual void compute_output_shape();
@@ -59,28 +63,36 @@ class ConvolutionLayerFFT : public BaseConvolutionLayer<Dtype> {
       int bottom_data_offset, Dtype* top_data, int top_data_offset, int n);
   virtual void fft_compute_weights();
   // Forward GPU
+#ifdef USE_GREENTEA
   virtual void Forward_gpu_fft(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Forward_gpu_fft_task(const Dtype *bottom_data,
       int bottom_data_offset, Dtype* top_data, int top_data_offset, int n,
       int ch_gr, int out_gr);
   virtual void fft_gpu_compute_weights();
+#endif
   // Backward CPU
   virtual void Backward_cpu_fft_task(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top, const Dtype* weight, int i, int n);
   // Backward GPU
+#ifdef USE_GREENTEA
   virtual void Backward_gpu_fft_task(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top, const Dtype* weight, int i, int n,
       int ch_gr, int out_gr);
+#endif
 
   // fft setup function for CPU and GPU
   virtual void fft_setup(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top);
   virtual void fft_cpu_setup();
+#ifdef USE_GREENTEA
   virtual void fft_gpu_setup();
+#endif
   virtual void fft_clean();
   virtual void fft_cpu_clean();
+#ifdef USE_GREENTEA
   virtual void fft_gpu_clean();
+#endif
 
   // FFT variables
   bool fft_cpu_initialized_;
@@ -135,7 +147,6 @@ class ConvolutionLayerFFT : public BaseConvolutionLayer<Dtype> {
   clfftPlanHandle ifft_gpu_backward_many_handle_;
   void* fft_gpu_map_out_complex_;
   void* fft_gpu_map_out_real_;
-
 #endif
 #endif
 };

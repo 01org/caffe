@@ -93,8 +93,11 @@ void ConvolutionLayerFFT<Dtype>::fft_setup(const vector<Blob<Dtype>*>& bottom,
       fft_cpu_setup();
       break;
     case Caffe::GPU:
+#ifdef USE_GREENTEA
       fft_gpu_setup();
+#endif
       break;
+
   }
 }
 
@@ -146,9 +149,11 @@ void ConvolutionLayerFFT<Dtype>::fft_clean() {
   if (fft_cpu_initialized_) {
     fft_cpu_clean();
   }
+#ifdef USE_GREENTEA
   if (fft_gpu_initialized_) {
     fft_gpu_clean();
   }
+#endif
 }
 
 template <typename Dtype>

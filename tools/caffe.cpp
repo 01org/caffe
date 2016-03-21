@@ -127,7 +127,7 @@ int device_query() {
       caffe::Caffe::DeviceQuery();
     }
 #ifdef USE_GREENTEA
-  if (Caffe::GetDefaultDevice()->backend() == BACKEND_OpenCL) {
+  if (Caffe::GetDefaultDevice()->backend() == caffe::BACKEND_OpenCL) {
     if (gpus.size() > 0 && gpus[0] >= 0) {
       // Explicitly call for OCL + FFT
       caffe::Caffe::TeardownDevice(gpus[0]);
@@ -245,7 +245,7 @@ int train() {
   LOG(INFO) << "Optimization Done.";
 
 #ifdef USE_GREENTEA
-  if (Caffe::GetDefaultDevice()->backend() == BACKEND_OpenCL) {
+  if (Caffe::GetDefaultDevice()->backend() == caffe::BACKEND_OpenCL) {
     if (gpus.size() > 0 && gpus[0] >= 0) {
       // Explicitly call for OCL + FFT
       caffe::Caffe::TeardownDevice(gpus[0]);
@@ -322,7 +322,7 @@ int test() {
     LOG(INFO) << output_name << " = " << mean_score << loss_msg_stream.str();
   }
 #ifdef USE_GREENTEA
-  if (Caffe::GetDefaultDevice()->backend() == BACKEND_OpenCL) {
+  if (Caffe::GetDefaultDevice()->backend() == caffe::BACKEND_OpenCL) {
     if (gpus.size() > 0 && gpus[0] >= 0) {
       // Explicitly call for OCL + FFT
       caffe::Caffe::TeardownDevice(gpus[0]);
@@ -427,7 +427,7 @@ int time() {
   LOG(INFO) << "*** Benchmark ends ***";
 
 #ifdef USE_GREENTEA
-  if (Caffe::GetDefaultDevice()->backend() == BACKEND_OpenCL) {
+  if (Caffe::GetDefaultDevice()->backend() == caffe::BACKEND_OpenCL) {
     if (gpus.size() > 0 && gpus[0] >= 0) {
       // Explicitly call for OCL + FFT
       caffe::Caffe::TeardownDevice(gpus[0]);
