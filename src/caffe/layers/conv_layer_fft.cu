@@ -35,7 +35,6 @@ void ConvolutionLayerFFT<Dtype>::fft_gpu_setup() {
     return;
   }
 
-  //ClState& state = Caffe::cl_state();
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
 
   // Evaluate memory needed for buffers
@@ -467,17 +466,55 @@ template void ConvolutionLayerFFT<float>::Backward_gpu_fft_task(
     const float* weight, int i, int n, int ch_gr, int out_gr);
 
 // double instantiation
-template void ConvolutionLayerFFT<double>::fft_gpu_setup();
-template void ConvolutionLayerFFT<double>::fft_gpu_clean();
-template void ConvolutionLayerFFT<double>::Forward_gpu_fft(
-    const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top);
-template void ConvolutionLayerFFT<double>::Forward_gpu_fft_task(
+template<>
+void ConvolutionLayerFFT<double>::fft_gpu_setup()
+{
+  NOT_IMPLEMENTED;
+}
+
+template<>
+void ConvolutionLayerFFT<double>::fft_gpu_clean()
+{
+  NOT_IMPLEMENTED;
+}
+
+template<>
+void ConvolutionLayerFFT<double>::Forward_gpu_fft(
+    const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top)
+{
+  NOT_IMPLEMENTED;
+}
+template<>
+void ConvolutionLayerFFT<double>::Forward_gpu_fft_task(
     const double *bottom_data, int bottom_data_offset, double* top_data,
-    int top_data_offset, int n, int ch_gr, int out_gr);
-template void ConvolutionLayerFFT<double>::fft_gpu_compute_weights();
-template void ConvolutionLayerFFT<double>::Backward_gpu_fft_task(
+    int top_data_offset, int n, int ch_gr, int out_gr)
+{
+  NOT_IMPLEMENTED;
+}
+template<>
+void ConvolutionLayerFFT<double>::fft_gpu_compute_weights()
+{
+  NOT_IMPLEMENTED;
+}
+template<> void ConvolutionLayerFFT<double>::Backward_gpu_fft_task(
     const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top,
-    const double* weight, int i, int n, int ch_gr, int out_gr);
+    const double* weight, int i, int n, int ch_gr, int out_gr)
+{
+  NOT_IMPLEMENTED;
+}
+template <>
+void ConvolutionLayerFFT<double>::Forward_gpu(const vector<Blob<double>*>& bottom,
+                                             const vector<Blob<double>*>& top)
+{
+  NOT_IMPLEMENTED;
+}
+template <>
+void ConvolutionLayerFFT<double>::Backward_gpu(const vector<Blob<double>*>& top,
+                                              const vector<bool>& propagate_down,
+                                              const vector<Blob<double>*>& bottom)
+{
+  NOT_IMPLEMENTED;
+}
 
 INSTANTIATE_LAYER_GPU_FUNCS(ConvolutionLayerFFT);
 
