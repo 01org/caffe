@@ -133,19 +133,19 @@ const char* clGetErrorString(cl_int error);
 #define OCL_LOCAL_WORKGROUP_SIZE 256
 
 // OCL: number of work groups
-inline int CAFFE_GET_BLOCKS(const int N) {
+inline int CAFFE_GET_BLOCKS_OCL(const int N) {
   return (N + OCL_LOCAL_WORKGROUP_SIZE - 1) / OCL_LOCAL_WORKGROUP_SIZE;
 }
-inline int CAFFE_GET_BLOCKS(const int N, const int lws) {
+inline int CAFFE_GET_BLOCKS_OCL(const int N, const int lws) {
   return (N + lws - 1) / lws;
 }
 
 // OCL: get padded global work size
 inline int CAFFE_GET_PADDED_GLOBAL_WORK_SIZE(const int N) {
-  return CAFFE_GET_BLOCKS(N) * OCL_LOCAL_WORKGROUP_SIZE;
+  return CAFFE_GET_BLOCKS_OCL(N) * OCL_LOCAL_WORKGROUP_SIZE;
 }
 inline int CAFFE_GET_PADDED_GLOBAL_WORK_SIZE(const int N, const int lws) {
-  return CAFFE_GET_BLOCKS(N, lws) * lws;
+  return CAFFE_GET_BLOCKS_OCL(N, lws) * lws;
 }
 
 }  // namespace caffe
