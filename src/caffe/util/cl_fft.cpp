@@ -45,16 +45,7 @@ void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
   //size_t aligned_offset_fft_gpu_weights_real;
   int offset_offset_fft_gpu_weights_real = 0;
 
-  //get_aligned_offset(&aligned_offset_fft_gpu_weights_real,
-  //    &offset_offset_fft_gpu_weights_real, fft_gpu_weights_real);
-  
-  //cl_mem mem_fft_gpu_weights_real = state.create_subbuffer(fft_gpu_weights_real,
-  //    aligned_offset_fft_gpu_weights_real);
-
-  //size_t aligned_offset_weight;
   int offset_offset_weight = 0;
-  //get_aligned_offset(&aligned_offset_weight, &offset_offset_weight, weight);
-  //cl_mem mem_weight = state.create_subbuffer(weight, aligned_offset_weight);
 
   const int ch_gr = channels / group;
   const int ker_size_ch_group = ker_h * ker_w * ch_gr;
@@ -62,7 +53,7 @@ void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
   int argIdx = 0;
   const int ker_size = ker_h * ker_w;
   const int complex_width_len = 2*(fft_width/2 + 1);
-  viennacl::ocl::kernel & kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_in");
+  viennacl::ocl::kernel & kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_cyclic_shift_in"));
   kernel.arg(argIdx++, WrapHandle((cl_mem)fft_gpu_weights_real, &ctx));
   kernel.arg(argIdx++, offset_offset_fft_gpu_weights_real);
   kernel.arg(argIdx++, WrapHandle((cl_mem)weight, &ctx));
@@ -119,9 +110,9 @@ void fft_gpu_copy2buffer_in_2D(Dtype* map_out, const Dtype* map_in, int in_offse
   const size_t global_work_size[2] = { (size_t)size, (size_t)channels };
   viennacl::ocl::kernel kernel;
   if (width < 4) {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_in_naive_2d");
+    kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_left_top_in_naive_2d"));
   } else {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_in_2d");
+    kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_left_top_in_2d"));
   }
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)map_out, &ctx));
@@ -189,9 +180,9 @@ void fft_gpu_copy2buffer_out_forward_2D(Dtype* map_out, int out_offset, const Dt
   const size_t global_work_size[2] = { (size_t)size, (size_t)num_output };
   viennacl::ocl::kernel kernel;
   if (width_out < 4) {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_out_naive_2d");
+    kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_left_top_out_naive_2d"));
   } else {
-    kernel = ctx.get_kernel("kernel_program", "copy2buffer_left_top_out_2d");
+    kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_left_top_out_2d"));
   }
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)map_out, &ctx));
@@ -247,7 +238,7 @@ void fft_gpu_copy2buffer_out_backward(Dtype* map_out, const Dtype* map_in,
   int offset_offset_map_in = 0;
 
   const size_t global_work_size = height_out * width_out;
-  viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_out");
+  viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_cyclic_shift_out"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)map_out, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
@@ -299,7 +290,7 @@ void fft_gpu_copy2buffer_out_backward_2D(Dtype* map_out, int out_offset, const D
   int map_out_size = height_out * width_out;
   int map_in_size = fft_height * fft_width;
   const size_t global_work_size[2] = { (size_t)map_out_size, (size_t)channels };
-  viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program", "copy2buffer_cyclic_shift_out_2d");
+  viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("copy2buffer_cyclic_shift_out_2d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)map_out, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
@@ -349,7 +340,7 @@ void caffe_gpu_elementMulConj_1D(DtypeComplex<Dtype>* dst,
 
 
   const size_t global_work_size = map_size >> 1;
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_1d");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_conjugate_multiplication_1d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -387,7 +378,7 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
   cl_mem src1_vec = clCreateBuffer(ctx.handle().get(), CL_MEM_READ_WRITE,
       block_size, NULL, NULL);
   size_t global_work_size1 = map_size;
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "convert_data_to_channel_major");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("convert_data_to_channel_major"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)src1_vec, &ctx));
   kernel.arg(argIdx++, WrapHandle((cl_mem)src1, &ctx));
@@ -403,7 +394,7 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
       &global_work_size1, NULL, 0, NULL, NULL));
 #endif
 
-  viennacl::ocl::kernel kernel_batchedCdotc = ctx.get_kernel("kernel_program", "batchedCdotc");
+  viennacl::ocl::kernel kernel_batchedCdotc = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("batchedCdotc"));
   // Batched complex number dot product
   size_t global_work_size2[2] = { (size_t)map_size, (size_t)out_gr };
   argIdx = 0;
@@ -446,7 +437,7 @@ void caffe_gpu_elementMulConj_2D(DtypeComplex<Dtype>* dst, int dst_offset,
 
 
   const size_t global_work_size[2] = { (size_t)map_size >> 1, (size_t)out_gr };
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_2d");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_conjugate_multiplication_2d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -506,7 +497,7 @@ void caffe_gpu_elementMulConj_2D_SLM(DtypeComplex<Dtype>* dst,
       CAFFE_GET_PADDED_GLOBAL_WORK_SIZE(out_gr, local_work_size_y);
   const size_t global_work_size[2] = { (size_t)global_work_size_x, (size_t)global_work_size_y };
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
-      "complex_conjugate_multiplication_2d_SLM");
+      CL_KERNEL_SELECT("complex_conjugate_multiplication_2d_SLM"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -549,7 +540,7 @@ void caffe_gpu_elementMulConj_3D(DtypeComplex<Dtype>* dst,
   int offset_offset_src2 = 0;
 
   const size_t global_work_size[3] = { (size_t)map_size >> 1, (size_t)out_gr, (size_t)ch_gr };
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_conjugate_multiplication_3d");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_conjugate_multiplication_3d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -607,7 +598,7 @@ void caffe_gpu_elementMulConj_3D_SLM(DtypeComplex<Dtype>* dst,
   const size_t global_work_size[3] = {
       (size_t)global_work_size_x, (size_t)global_work_size_y, (size_t)global_work_size_z };
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
-      "complex_conjugate_multiplication_3d_SLM");
+      CL_KERNEL_SELECT("complex_conjugate_multiplication_3d_SLM"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -652,7 +643,7 @@ void caffe_gpu_elementMul_1D(DtypeComplex<Dtype>* dst,
   int offset_offset_src2 = 0;
 
   const size_t global_work_size = size >> 1;  // # of Dtype4
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_multiplication_1d");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_multiplication_1d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -704,7 +695,7 @@ void caffe_gpu_elementMul_2D_SLM(DtypeComplex<Dtype>* dst,
   const size_t local_mem_size_in_bytes =
       ch_gr * local_work_size_x * local_work_size_y * sizeof(Dtype) * 4;
 
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_multiplication_2d_SLM");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_multiplication_2d_SLM"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -745,7 +736,7 @@ void caffe_gpu_elementMul_3D(DtypeComplex<Dtype>* dst,
 
   // Dim 1: # of Dtype2
   const size_t global_work_size[3] = { (size_t)size, (size_t)ch_gr, (size_t)num_output };
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "complex_multiplication_3d");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("complex_multiplication_3d"));
   int argIdx = 0;
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
@@ -843,7 +834,7 @@ void reshape_weights(DtypeComplex<Dtype>* dst, DtypeComplex<Dtype>* src,
   viennacl::ocl::context &ctx = viennacl::ocl::current_context();
 
   cl_command_queue queue = ctx.get_queue().handle().get();
-  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", "convert_weight_to_channel_major");
+  viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program", CL_KERNEL_SELECT("convert_weight_to_channel_major"));
   int argIdx = 0;
   size_t global_work_size[2] = { (size_t)size, (size_t)num_output };
   kernel.arg(argIdx++, WrapHandle((cl_mem)dst, &ctx));
