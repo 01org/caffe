@@ -16,7 +16,7 @@
 #endif
 
 namespace caffe {
-
+#ifndef CPU_ONLY
 #ifdef USE_GREENTEA
 
 // #define dbg
@@ -1393,9 +1393,21 @@ void ConvolutionLayerSpatial<double>::Backward_gpu(
     const vector<Blob<double>*>& bottom) {
   NOT_IMPLEMENTED;
 }
+#else
+template<typename Dtype>
+void ConvolutionLayerSpatial<Dtype>::Forward_gpu(
+    const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  NOT_IMPLEMENTED;
+}
 
+template<typename Dtype>
+void ConvolutionLayerSpatial<Dtype>::Backward_gpu(
+    const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down,
+    const vector<Blob<Dtype>*>& bottom) {
+  NOT_IMPLEMENTED;
+}
+#endif
 INSTANTIATE_LAYER_GPU_FUNCS(ConvolutionLayerSpatial);
 #endif
-
 
 }  // namespace caffe

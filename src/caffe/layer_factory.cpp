@@ -65,6 +65,7 @@ shared_ptr<Layer<Dtype> > GetConvolutionLayer(const LayerParameter& param) {
   }
   if (engine == ConvolutionParameter_Engine_CAFFE
       || Caffe::GetDevice(param.device(), true)->backend() == BACKEND_OpenCL
+      || Caffe::GetDevice(param.device(), true)->backend() == BACKEND_CPU
       || checkConvolutionDilated(param.convolution_param())) {
     if (engine == ConvolutionParameter_Engine_INTEL_SPATIAL)
       return shared_ptr<Layer<Dtype> >
