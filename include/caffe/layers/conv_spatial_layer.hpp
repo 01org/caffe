@@ -11,7 +11,6 @@
 #include "caffe/layers/base_conv_layer.hpp"
 
 namespace caffe {
-
 template<typename Dtype>
 class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
  public:
@@ -91,6 +90,7 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
     size_t local_work_size[3];
     size_t global_work_size[3];
     int_tp workItem_output[3];
+    int_tp cpu_work_size;
     bool verified;
     bool autoTune;
     bool tested;
@@ -102,7 +102,7 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
     kernelConfig() {
     }
     kernelConfig(string name, size_t* global_size, size_t* local_size,
-    int_tp* workItem,
+    int_tp* workItem, int_tp cpu_size,
                  bool tune, bool swizzle, bool batched, bool null_local,
                  int_tp type = 0) {
       kernelName = name;
@@ -111,6 +111,7 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
         global_work_size[x] = global_size[x];
         workItem_output[x] = workItem[x];
       }
+      cpu_work_size = cpu_size;
       autoTune = tune;
       swizzle_weights = swizzle;
       batched_execute = batched;
@@ -161,6 +162,10 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
                                   const vector<Blob<Dtype>*>& top, int_tp index,
                                   int_tp numImages,
                                   kernelConfig* config);
+  virtual cl_int convolve_hybrid(const vector<Blob<float>*>& bottom,
+                                 const vector<Blob<float>*>& top,
+                                 int_tp index,
+                                 int_tp numImages, kernelConfig* config);
   virtual float timed_convolve(const vector<Blob<Dtype>*>& bottom,
                                const vector<Blob<Dtype>*>& top, int_tp index,
                                int_tp numImages,
@@ -177,9 +182,10 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
   virtual void generate_key();
   virtual std::string generate_unique_key();
   virtual std::string generate_specific_key(int_tp type, int_tp blockWidth,
-  int_tp blockHeight,
+                                            int_tp blockHeight,
                                             int_tp blockDepth);
-  virtual void calculate_global_size(int_tp batch, int_tp* workItemOutput,
+  virtual void calculate_global_size(int_tp batch, int_tp output_channels,
+                                     int_tp* workItemOutput,
                                      size_t* localSizes, size_t* globalSizes);
   void load_cached_kernels(const vector<Blob<Dtype>*>& bottom,
                            const vector<Blob<Dtype>*>& top);
@@ -187,7 +193,6 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
              const vector<Blob<Dtype>*>& top, caffe::Backend backend);
 #endif
 #endif
-
   const Dtype* bottom_data;
   Dtype* top_data;
   Dtype* col_data;
@@ -210,7 +215,6 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
   int_tp pad_w_;
   int_tp stride_h_;
   int_tp stride_w_;
-
   /// M_ is the channel dimension of the output for a single group, which is the
   /// leading dimension of the filter matrix.
   int_tp M_;
