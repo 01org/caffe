@@ -7,6 +7,10 @@
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
 
+#ifdef USE_GREENTEA
+#include "caffe/greentea/greentea_math_functions.hpp"
+#endif
+
 namespace caffe {
 
 template<>
@@ -117,6 +121,9 @@ void caffe_copy(const int_tp N, const Dtype* X, Dtype* Y) {
       // NOLINT_NEXT_LINE(caffe/alt_fn)
       CUDA_CHECK(cudaMemcpy(Y, X, sizeof(Dtype) * N, cudaMemcpyDefault));
 #endif  // USE_CUDA
+#ifdef USE_GREENTEA
+      caffe_gpu_memcpy(N * sizeof(Dtype), X, Y);
+#endif
 #else
       NO_GPU;
 #endif

@@ -44,10 +44,14 @@ void BNLLLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
     viennacl::ocl::kernel &oclk_bnll = program.get_kernel(
         CL_KERNEL_SELECT("bnll_forward"));
+    ClState& clState = Caffe::cl_state();  
+    ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
+    ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
+
     viennacl::ocl::enqueue(
-        oclk_bnll(count, WrapHandle((cl_mem) bottom_data, &ctx),
-                  WrapHandle((cl_mem) top_data, &ctx)),
-        ctx.get_queue());
+        oclk_bnll(count, WrapHandle(buf_bottom.memobj, &ctx),
+                  WrapHandle(buf_top.memobj, &ctx)),
+        ctx.get_queue());  
 #endif  // USE_GREENTEA
   }
 }
@@ -89,11 +93,17 @@ void BNLLLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
       viennacl::ocl::kernel &oclk_bnll = program.get_kernel(
           CL_KERNEL_SELECT("bnll_backward"));
+
+      ClState& clState = Caffe::cl_state();  
+      ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
+      ClMemOff<Dtype> buf_bottomdata = clState.get_buffer_mem(bottom_data);
+      ClMemOff<Dtype> buf_bottomdiff = clState.get_buffer_mem(bottom_diff);
+
       viennacl::ocl::enqueue(
-          oclk_bnll(count, WrapHandle((cl_mem) top_diff, &ctx),
-                    WrapHandle((cl_mem) bottom_data, &ctx),
-                    WrapHandle((cl_mem) bottom_diff, &ctx)),
-          ctx.get_queue());
+          oclk_bnll(count, WrapHandle(buf_top.memobj, &ctx),
+                    WrapHandle(buf_bottomdata.memobj, &ctx),
+                    WrapHandle(buf_bottomdiff.memobj, &ctx)),
+          ctx.get_queue());   
 #endif  // USE_GREENTEA
     }
   }

@@ -37,8 +37,7 @@ void RecurrentLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 #ifdef USE_GREENTEA
         viennacl::ocl::context &ctx = viennacl::ocl::get_context(
             this->device_->id());
-        greentea_copy<Dtype>(count, (cl_mem)timestep_T_data, 0,
-                             (cl_mem)timestep_0_data, 0, &ctx);
+        caffe_copy<Dtype>(count, timestep_T_data, timestep_0_data);
 #endif  // USE_GREENTEA
       }
     }

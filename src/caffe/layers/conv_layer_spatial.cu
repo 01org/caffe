@@ -317,8 +317,13 @@ void ConvolutionLayerSpatial<Dtype>::swizzleWeights(
   cl_uint argIdx = 0;
 
   int_tp channels = this->channels_ / this->group_;
-  oclk_copy_weight.arg(argIdx++, WrapHandle((cl_mem) weight, &ctx));
-  oclk_copy_weight.arg(argIdx++, WrapHandle((cl_mem) swizzled_weights, &ctx));
+
+  ClState& clState = Caffe::cl_state();  
+  ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);  
+  ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
+    
+  oclk_copy_weight.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
+  oclk_copy_weight.arg(argIdx++, WrapHandle(buf_swizzled.memobj, &ctx));
   oclk_copy_weight.arg(argIdx++, kernel_w_);
   oclk_copy_weight.arg(argIdx++, kernel_h_);
   oclk_copy_weight.arg(argIdx++, channels);
@@ -367,7 +372,11 @@ void ConvolutionLayerSpatial<Dtype>::pad_image(
   int_tp col_data_offset = 0;
   int_tp channels = this->channels_;
 
-  oclk_copy.arg(argIdx++, WrapHandle((cl_mem) bottom_data, &ctx));
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
+  ClMemOff<Dtype> buf_col = clState.get_buffer_mem(col_data);
+
+  oclk_copy.arg(argIdx++, WrapHandle(buf_bottom.memobj, &ctx));
   oclk_copy.arg(argIdx++, image_offset);
   oclk_copy.arg(argIdx++, channels);
   oclk_copy.arg(argIdx++, height_);
@@ -376,7 +385,7 @@ void ConvolutionLayerSpatial<Dtype>::pad_image(
   oclk_copy.arg(argIdx++, padded_width_);
   oclk_copy.arg(argIdx++, pad_h_);
   oclk_copy.arg(argIdx++, pad_w_);
-  oclk_copy.arg(argIdx++, WrapHandle((cl_mem) col_data, &ctx));
+  oclk_copy.arg(argIdx++, WrapHandle(buf_col.memobj, &ctx));
   oclk_copy.arg(argIdx++, col_data_offset);
   oclk_copy.arg(argIdx++, imgNum);
   const size_t global_work_size_Copy[3] = { (size_t) padded_width_,
@@ -474,23 +483,32 @@ cl_int ConvolutionLayerSpatial<float>::convolve(
           * g;
 
       // Copy image
+      ClState& clState = Caffe::cl_state();  
+      ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);  
+      ClMemOff<float> buf_bottom = clState.get_buffer_mem(bottom_data);
+      ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
+      ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);
+      ClMemOff<float> buf_bias = clState.get_buffer_mem(bias_);
+      ClMemOff<float> buf_top = clState.get_buffer_mem(top_data);
+      
       if (pad_w_ > 0 || pad_h_ > 0) {
         pad_image(bottom, top, image_offset, config, numImages);
         image_offset = 0;
-        kernel.arg(argIdx++, WrapHandle((cl_mem) col_data, &ctx));
+        kernel.arg(argIdx++, WrapHandle(buf_col.memobj, &ctx));
       } else {
-        kernel.arg(argIdx++, WrapHandle((cl_mem) bottom_data, &ctx));
+        kernel.arg(argIdx++, WrapHandle(buf_bottom.memobj, &ctx));
       }
       kernel.arg(argIdx++, image_offset);
       if (config->swizzle_weights)
-        kernel.arg(argIdx++, WrapHandle((cl_mem) swizzled_weights, &ctx));
+        kernel.arg(argIdx++, WrapHandle(buf_swizzled.memobj, &ctx));
       else
-        kernel.arg(argIdx++, WrapHandle((cl_mem) weight, &ctx));
+        kernel.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
       kernel.arg(argIdx++, kernel_offset);
-      kernel.arg(argIdx++, WrapHandle((cl_mem) bias_, &ctx));
+      kernel.arg(argIdx++, WrapHandle(buf_bias.memobj, &ctx));
       kernel.arg(argIdx++, bias_offset_);
-      kernel.arg(argIdx++, WrapHandle((cl_mem) top_data, &ctx));
+      kernel.arg(argIdx++, WrapHandle(buf_top.memobj, &ctx));
       kernel.arg(argIdx++, output_image_offset);
+
       if (config->use_null_local) {
         err = clEnqueueNDRangeKernel(ctx.get_queue().handle().get(),
                                      kernel.handle().get(), 3,
@@ -540,19 +558,28 @@ cl_int ConvolutionLayerSpatial<float>::batched_convolve(
     int_tp kernel_offset = kernel_h_ * kernel_w_ * (channels_ / group_) * M_
         * g;
 
-    pad_image(bottom, top, image_offset, config, numImages);
-    kernel.arg(argIdx++, WrapHandle((cl_mem) col_data, &ctx));
+    pad_image(image_offset, config, numImages);
+
+    ClState& clState = Caffe::cl_state();  
+    ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);  
+    ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
+    ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);
+    ClMemOff<float> buf_bias = clState.get_buffer_mem(bias_);
+    ClMemOff<float> buf_top = clState.get_buffer_mem(top_data);
+    
+    kernel.arg(argIdx++, WrapHandle(buf_col.memobj, &ctx));
     kernel.arg(argIdx++, image_offset);
     if (config->swizzle_weights)
-      kernel.arg(argIdx++, WrapHandle((cl_mem) swizzled_weights, &ctx));
+      kernel.arg(argIdx++, WrapHandle(buf_swizzled.memobj, &ctx));
     else
-      kernel.arg(argIdx++, WrapHandle((cl_mem) weight, &ctx));
+      kernel.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
     kernel.arg(argIdx++, kernel_offset);
-    kernel.arg(argIdx++, WrapHandle((cl_mem) bias_, &ctx));
+    kernel.arg(argIdx++, WrapHandle(buf_bias.memobj, &ctx));
     kernel.arg(argIdx++, bias_offset_);
-    kernel.arg(argIdx++, WrapHandle((cl_mem) top_data, &ctx));
+    kernel.arg(argIdx++, WrapHandle(buf_top.memobj, &ctx));
     kernel.arg(argIdx++, output_image_offset);
     kernel.arg(argIdx++, numImages);
+
     if (config->use_null_local) {
       err = clEnqueueNDRangeKernel(ctx.get_queue().handle().get(),
                                    kernel.handle().get(), 3,

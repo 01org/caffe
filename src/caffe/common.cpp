@@ -27,6 +27,10 @@ namespace caffe {
 // Make sure each thread can have different values.
 static boost::thread_specific_ptr<Caffe> thread_instance_;
 
+#ifdef USE_GREENTEA
+ClState Caffe::cl_state_;
+#endif
+
 // Pointer to the global instance of Caffe
 static Caffe* global_instance_;
 static std::atomic<bool> first(true);
@@ -497,6 +501,7 @@ void Caffe::SetDevice(const int device_id) {
 #if defined(USE_GREENTEA) && defined(USE_FFT)
   Get().cl_fft_state_.setup();
 #endif
+
 }
 
 // Should call explicitly for OCL + FFT
@@ -504,6 +509,7 @@ void Caffe::TeardownDevice(const int device_id) {
 #if defined(USE_GREENTEA) &&defined(USE_FFT)
   Get().cl_fft_state_.teardown();
 #endif
+
 }
 
 // TODO: Fix this for the new backend
