@@ -12,6 +12,42 @@
 
 namespace caffe {
 
+struct kernelConfig {
+  string kernelName;
+  float executionTime;
+  size_t local_work_size[3];
+  size_t global_work_size[3];
+  int_tp workItem_output[3];
+  bool verified;
+  bool autoTune;
+  bool tested;
+  bool swizzle_weights;
+  bool batched_execute;
+  bool use_null_local;
+  int_tp kernelType;
+
+  kernelConfig() {
+  }
+  kernelConfig(string name, size_t* global_size, size_t* local_size,
+  int_tp* workItem,
+               bool tune, bool swizzle, bool batched, bool null_local,
+               int_tp type = 0) {
+    kernelName = name;
+    for (int_tp x = 0; x < 3; x++) {
+      local_work_size[x] = local_size[x];
+      global_work_size[x] = global_size[x];
+      workItem_output[x] = workItem[x];
+    }
+    autoTune = tune;
+    swizzle_weights = swizzle;
+    batched_execute = batched;
+    use_null_local = null_local;
+    verified = false;
+    tested = false;
+    kernelType = type;
+  }
+};
+
 template<typename Dtype>
 class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
  public:
@@ -85,42 +121,6 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
   }
   virtual void compute_output_shape();
 
-  struct kernelConfig {
-    string kernelName;
-    float executionTime;
-    size_t local_work_size[3];
-    size_t global_work_size[3];
-    int_tp workItem_output[3];
-    bool verified;
-    bool autoTune;
-    bool tested;
-    bool swizzle_weights;
-    bool batched_execute;
-    bool use_null_local;
-    int_tp kernelType;
-
-    kernelConfig() {
-    }
-    kernelConfig(string name, size_t* global_size, size_t* local_size,
-    int_tp* workItem,
-                 bool tune, bool swizzle, bool batched, bool null_local,
-                 int_tp type = 0) {
-      kernelName = name;
-      for (int_tp x = 0; x < 3; x++) {
-        local_work_size[x] = local_size[x];
-        global_work_size[x] = global_size[x];
-        workItem_output[x] = workItem[x];
-      }
-      autoTune = tune;
-      swizzle_weights = swizzle;
-      batched_execute = batched;
-      use_null_local = null_local;
-      verified = false;
-      tested = false;
-      kernelType = type;
-    }
-  };
-
 #ifndef CPU_ONLY
 #ifdef USE_GREENTEA
   virtual bool generate_kernel(const vector<Blob<Dtype>*>& bottom,
@@ -152,6 +152,10 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
                                    int_tp blockHeight,
                                    int_tp blockDepth);
   virtual cl_int convolve(const vector<Blob<Dtype>*>& bottom,
+                          const vector<Blob<Dtype>*>& top, int_tp index,
+                          int_tp numImages,
+                          kernelConfig* config);
+  virtual cl_int hybrid_convolve(const vector<Blob<Dtype>*>& bottom,
                           const vector<Blob<Dtype>*>& top, int_tp index,
                           int_tp numImages,
                           kernelConfig* config);

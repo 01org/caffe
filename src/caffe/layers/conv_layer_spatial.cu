@@ -1,5 +1,8 @@
+#include <atomic>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "caffe/filler.hpp"
@@ -22,7 +25,8 @@ namespace caffe {
 #ifndef CPU_ONLY
 #ifdef USE_GREENTEA
 
-//  #define dbg
+#define HYBRID
+// #define dbg
 #ifdef dbg
 #define dbgPrint(x) (x)
 #else
@@ -30,6 +34,10 @@ namespace caffe {
 #endif
 
 #define CACHE_DIRECTORY ".spatialkernels/"
+
+// variables for hybrid use.
+int image_count;
+std::mutex mtx;
 
 template<>
 void ConvolutionLayerSpatial<float>::generate_key() {
@@ -514,6 +522,191 @@ cl_int ConvolutionLayerSpatial<float>::convolve(
       break;
   }
 
+  return err;
+}
+
+void pad_image(viennacl::ocl::context *ctx,
+               int_tp image_offset,
+               string verification_kernel,
+               int_tp channels_,
+               int_tp group_,
+               int_tp height_,
+               int_tp width_,
+               int_tp padded_height_,
+               int_tp padded_width_,
+               int_tp pad_h_,
+               int_tp pad_w_,
+               const float* bottom_data,
+               float* col_data) {
+#ifdef USE_GREENTEA
+  // Copy kernel
+  viennacl::ocl::program & program = ctx->get_program(verification_kernel);
+  viennacl::ocl::kernel &oclk_copy = program.get_kernel("copyImage");
+
+  cl_uint argIdx = 0;
+  int_tp col_data_offset = 0;
+  int_tp channels = channels_ / group_;
+
+  oclk_copy.arg(argIdx++, WrapHandle((cl_mem) bottom_data, ctx));
+  oclk_copy.arg(argIdx++, image_offset);
+  oclk_copy.arg(argIdx++, channels);
+  oclk_copy.arg(argIdx++, height_);
+  oclk_copy.arg(argIdx++, width_);
+  oclk_copy.arg(argIdx++, padded_height_);
+  oclk_copy.arg(argIdx++, padded_width_);
+  oclk_copy.arg(argIdx++, pad_h_);
+  oclk_copy.arg(argIdx++, pad_w_);
+  oclk_copy.arg(argIdx++, WrapHandle((cl_mem) col_data, ctx));
+  oclk_copy.arg(argIdx++, col_data_offset);
+  const size_t global_work_size_Copy[3] = { (size_t) padded_width_,
+      (size_t) padded_height_, (size_t) channels };
+
+  clEnqueueNDRangeKernel(ctx->get_queue().handle().get(),
+                         oclk_copy.handle().get(), 3, NULL,
+                         global_work_size_Copy, NULL, 0, NULL, NULL);
+#endif
+}
+
+cl_int convolve_gpu_work(viennacl::ocl::context *ctx,
+                  viennacl::ocl::kernel *kernel,
+                  string verification_kernel,
+                  int_tp group_,
+                  int_tp channels_,
+                  int_tp bottom_dim_,
+                  int_tp top_dim_,
+                  int_tp width_,
+                  int_tp height_,
+                  int_tp output_w_,
+                  int_tp output_h_,
+                  int_tp kernel_h_,
+                  int_tp kernel_w_,
+                  int_tp padded_width_,
+                  int_tp padded_height_,
+                  int_tp pad_w_,
+                  int_tp pad_h_,
+                  int_tp numImages,
+                  int_tp M_,
+                  kernelConfig* config,
+                  float* col_data,
+                  const float* bottom_data,
+                  float* swizzled_weights,
+                  const float* weight,
+                  const float* bias_,
+                  float* top_data) {
+  int item = 0;
+  cl_int err = 0;
+  while (image_count < numImages) {
+    mtx.lock();
+    item = image_count;
+    image_count++;
+    mtx.unlock();
+
+    // std::cout <<"gpu image item:" << item << std::endl;
+    for (int_tp g = 0; g < group_; ++g) {
+      int_tp bias_offset_ = M_ * g;
+      int_tp image_offset = item * bottom_dim_
+          + width_ * height_ * (channels_ / group_) * g;
+      int_tp output_image_offset = item * top_dim_
+          + output_w_ * output_h_ * M_ * g;
+      cl_uint argIdx = 0;
+      int_tp kernel_offset = kernel_h_ * kernel_w_ * (channels_ / group_) * M_
+          * g;
+
+      // Copy image
+      if (pad_w_ > 0 || pad_h_ > 0) {
+        pad_image(ctx, image_offset,
+                  verification_kernel,
+                  channels_,
+                  group_,
+                  height_,
+                  width_,
+                  padded_height_,
+                  padded_width_,
+                  pad_h_,
+                  pad_w_,
+                  bottom_data,
+                  col_data);
+        image_offset = 0;
+        kernel->arg(argIdx++, WrapHandle((cl_mem) col_data, ctx));
+      } else {
+        kernel->arg(argIdx++, WrapHandle((cl_mem) bottom_data, ctx));
+      }
+      kernel->arg(argIdx++, image_offset);
+      if (config->swizzle_weights)
+        kernel->arg(argIdx++, WrapHandle((cl_mem) swizzled_weights, ctx));
+      else
+        kernel->arg(argIdx++, WrapHandle((cl_mem) weight, ctx));
+      kernel->arg(argIdx++, kernel_offset);
+      kernel->arg(argIdx++, WrapHandle((cl_mem) bias_, ctx));
+      kernel->arg(argIdx++, bias_offset_);
+      kernel->arg(argIdx++, WrapHandle((cl_mem) top_data, ctx));
+      kernel->arg(argIdx++, output_image_offset);
+      if (config->use_null_local) {
+        err = clEnqueueNDRangeKernel(ctx->get_queue().handle().get(),
+                                     kernel->handle().get(), 3,
+                                     NULL,
+                                     config->global_work_size, NULL, 0, NULL,
+                                     NULL);
+      } else {
+        err = clEnqueueNDRangeKernel(ctx->get_queue().handle().get(),
+                                     kernel->handle().get(), 3,
+                                     NULL,
+                                     config->global_work_size,
+                                     config->local_work_size, 0, NULL,
+                                     NULL);
+      }
+      viennacl::backend::finish();
+    }
+  }
+
+  return err;
+}
+
+template<>
+cl_int ConvolutionLayerSpatial<float>::hybrid_convolve(
+    const vector<Blob<float>*>& bottom, const vector<Blob<float>*>& top,
+    int_tp index,
+    int_tp numImages, kernelConfig* config) {
+
+  if (config->swizzle_weights)
+    swizzleWeights(16);
+
+  viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
+  viennacl::ocl::program & program = ctx.get_program(config->kernelName);
+  viennacl::ocl::kernel &kernel = program.get_kernel(config->kernelName);
+
+  cl_int err = 0;
+  image_count = 0;
+
+  std::thread thread_gpu(convolve_gpu_work, &ctx, &kernel,
+                      verification_kernel, group_, channels_, bottom_dim_,
+                      top_dim_, width_, height_, output_w_, output_h_,
+                      kernel_h_, kernel_w_, padded_width_, padded_height_,
+                      pad_w_, pad_h_, numImages, M_, config, col_data,
+                      bottom_data, swizzled_weights, weight, bias_, top_data);
+
+  const float* weight_cpu = this->blobs_[0]->cpu_data();
+  const float* bottom_data_cpu = bottom[index]->cpu_data();
+
+  std::shared_ptr<float> output_cpu(new float[this->top_dim_],
+                               std::default_delete<float[]>());
+  int_tp item = 0;
+  while (image_count < num_) {
+    mtx.lock();
+    item = image_count;
+    image_count++;
+    mtx.unlock();
+
+    this->forward_cpu_gemm(bottom_data_cpu + item * this->bottom_dim_,
+                           weight_cpu, output_cpu.get());
+    if (this->bias_term_) {
+      const float* bias_cpu = this->blobs_[1]->cpu_data();
+      this->forward_cpu_bias(output_cpu.get(), bias_cpu);
+    }
+    greentea_copy<float>(top_dim_, output_cpu.get(), (cl_mem) top_data,
+                         item * top_dim_, &ctx);
+  }
+  thread_gpu.join();
   return err;
 }
 
@@ -1046,7 +1239,6 @@ void ConvolutionLayerSpatial<float>::Forward_gpu(
 
     if (bias_term_)
       bias_ = this->blobs_[1]->gpu_data();
-
     if (!tuned_) {
       Blob<float> verify_blob;
       verify_blob.ReshapeLike(*top[i]);
@@ -1069,7 +1261,11 @@ void ConvolutionLayerSpatial<float>::Forward_gpu(
     if (kernelQueue[kernel_index_]->batched_execute)
       batched_convolve(bottom, top, i, num_, kernelQueue[kernel_index_]);
     else
+#ifdef HYBRID
+      hybrid_convolve(bottom, top, i, num_, kernelQueue[kernel_index_]);
+#else
       convolve(bottom, top, i, num_, kernelQueue[kernel_index_]);
+#endif
   }
   viennacl::backend::finish();
 }
@@ -1261,6 +1457,15 @@ bool ConvolutionLayerSpatial<double>::tune_local_size(
 
 template<>
 cl_int ConvolutionLayerSpatial<double>::convolve(
+    const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top,
+    int_tp index,
+    int_tp numImages, kernelConfig* config) {
+  NOT_IMPLEMENTED;
+  return false;
+}
+
+template<>
+cl_int ConvolutionLayerSpatial<double>::hybrid_convolve(
     const vector<Blob<double>*>& bottom, const vector<Blob<double>*>& top,
     int_tp index,
     int_tp numImages, kernelConfig* config) {
