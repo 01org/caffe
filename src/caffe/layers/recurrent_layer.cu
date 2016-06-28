@@ -7,10 +7,6 @@
 #include "caffe/layers/recurrent_layer.hpp"
 #include "caffe/util/math_functions.hpp"
 
-#ifdef USE_GREENTEA
-#include "caffe/greentea/greentea_math_functions.hpp"
-#endif  // USE_GREENTEA
-
 namespace caffe {
 
 template <typename Dtype>

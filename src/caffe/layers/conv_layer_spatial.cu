@@ -12,8 +12,6 @@
 #ifdef USE_GREENTEA
 #include "caffe/greentea/cl_kernels.hpp"
 #include "caffe/greentea/greentea.hpp"
-#include "caffe/greentea/greentea_im2col.hpp"
-#include "caffe/greentea/greentea_math_functions.hpp"
 #endif
 
 #include <boost/filesystem.hpp>
@@ -319,8 +317,8 @@ void ConvolutionLayerSpatial<Dtype>::swizzleWeights(
   int_tp channels = this->channels_ / this->group_;
 
   ClState& clState = Caffe::cl_state();  
-  ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);  
-  ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
+  ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight);  
+  ClMemOff<Dtype> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
     
   oclk_copy_weight.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
   oclk_copy_weight.arg(argIdx++, WrapHandle(buf_swizzled.memobj, &ctx));
@@ -558,7 +556,7 @@ cl_int ConvolutionLayerSpatial<float>::batched_convolve(
     int_tp kernel_offset = kernel_h_ * kernel_w_ * (channels_ / group_) * M_
         * g;
 
-    pad_image(image_offset, config, numImages);
+    pad_image(bottom, top, image_offset, config, numImages);
 
     ClState& clState = Caffe::cl_state();  
     ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);  

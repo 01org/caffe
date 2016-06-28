@@ -10,8 +10,8 @@
 #include "caffe/layers/conv_fft_layer.hpp"
 
 #include "caffe/greentea/greentea.hpp"
-#include "caffe/greentea/greentea_im2col.hpp"
-#include "caffe/greentea/greentea_math_functions.hpp"
+#include "caffe/util/im2col.hpp"
+#include "caffe/util/math_functions.hpp"
 
 
 // #define COMPLEX_MULT_CONJ_1D

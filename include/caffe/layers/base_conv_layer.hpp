@@ -8,10 +8,6 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/im2col.hpp"
 
-#ifdef USE_GREENTEA
-#include "caffe/greentea/greentea_im2col.hpp"
-#endif
-
 namespace caffe {
 
 /**

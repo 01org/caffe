@@ -6,8 +6,7 @@
 #include "caffe/util/math_functions.hpp"
 
 #ifdef USE_GREENTEA
-#include "caffe/greentea/greentea_im2col.hpp"
-#include "caffe/greentea/greentea_math_functions.hpp"
+#include "caffe/util/im2col.hpp"
 
 #define ZEROCOPY_SUPPORTED(device, ptr, size) \
              (device->is_host_unified() &&\

@@ -10,7 +10,7 @@
 
 #ifdef USE_GREENTEA
 #include "caffe/greentea/greentea.hpp"
-#include "caffe/greentea/greentea_math_functions.hpp"
+#include "caffe/util/math_functions.hpp"
 
 #include <boost/math/special_functions/next.hpp>
 #include <boost/random.hpp>
@@ -635,7 +635,7 @@ void caffe_gpu_axpy<float>(const int_tp N, const float alpha, const float* X,
     cl_command_queue queue = ctx.get_queue().handle().get();
 
     GREENTEA_CL_BLAS_CHECK(
-        clblasSaxpy(N, alpha, MemX, offX,
+        clblasSaxpy(N, alpha, Mem_X, offX,
             1, Mem_Y, offY, 1, 1, &queue, 0, NULL, NULL));
     
 #elif defined(USE_CLBLAST)
@@ -709,7 +709,7 @@ void caffe_gpu_axpy<double>(const int_tp N, const double alpha, const double* X,
     cl_command_queue queue = ctx.get_queue().handle().get();
 
     GREENTEA_CL_BLAS_CHECK(
-        clblasDaxpy(N, alpha, MemX, offX,
+        clblasDaxpy(N, alpha, Mem_X, offX,
             1, Mem_Y, offY, 1, 1, &queue, 0, NULL, NULL));
     
 #elif defined(USE_CLBLAST)
@@ -1144,7 +1144,7 @@ void caffe_gpu_asum<float>(const int_tp n, const float* x, float* y) {
 
     GREENTEA_CL_BLAS_CHECK(
         clblasSasum(n, bufAsum.memobj, 0, Mem_X, offX, 1,
-            memScratch.memobj, 1, &queue, 0, NULL, NULL));
+            bufScratch.memobj, 1, &queue, 0, NULL, NULL));
 
     caffe_gpu_memcpy(sizeof(float), memAsum, y);
 
@@ -1223,14 +1223,14 @@ void caffe_gpu_asum<double>(const int_tp n, const double* x, double* y) {
     cl_int err;
     double* memAsum = static_cast<double*>(clState.create_buffer(dev_id, 
       CL_MEM_WRITE_ONLY, sizeof(cl_double), NULL, err));
-	float* memScratch = static_cast<double*>(clState.create_buffer(dev_id, 
+	double* memScratch = static_cast<double*>(clState.create_buffer(dev_id, 
 	  CL_MEM_READ_WRITE, n * sizeof(cl_double), NULL, err));
 	ClMemOff<double> bufAsum = clState.get_buffer_mem(memAsum);
 	ClMemOff<double> bufScratch = clState.get_buffer_mem(memScratch);
 
     GREENTEA_CL_BLAS_CHECK(
         clblasDasum(n, bufAsum.memobj, 0, Mem_X, offX, 1,
-            memScratch.memobj, 1, &queue, 0, NULL, NULL));
+            bufScratch.memobj, 1, &queue, 0, NULL, NULL));
 
     caffe_gpu_memcpy(sizeof(double), memAsum, y);
 

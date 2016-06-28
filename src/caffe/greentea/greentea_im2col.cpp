@@ -7,7 +7,7 @@
 #include "caffe/common.hpp"
 #include "caffe/device.hpp"
 #ifdef USE_GREENTEA
-#include "caffe/greentea/greentea_im2col.hpp"
+#include "caffe/util/im2col.hpp"
 
 namespace caffe {
 template<typename Dtype>

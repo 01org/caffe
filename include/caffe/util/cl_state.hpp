@@ -9,6 +9,15 @@
 
 namespace caffe {
 
+/**
+ * @brief Virtual addressing with Opencl memory objects and their offsets. After allocating
+ *        Opencl memory, the memory object and the memory size are mapped into a virtual
+ *        address and the virtual address is returned. The memory object and its offset can
+ *        easily be determined by passing a single address in order to enable the use of Caffe's
+ *        pointer offsetting just as the approach in CUDA path. By this mechanism, many redundant
+ *        code caused by the difference between Opencl and CUDA path can be reduced.
+ */
+
 template<typename T>
 struct ClMemOff {
   cl_mem memobj;

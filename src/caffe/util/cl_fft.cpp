@@ -7,7 +7,7 @@
 #if defined(USE_GREENTEA) && defined(USE_FFT)
 #include "caffe/device.hpp"
 #include "caffe/greentea/cl_kernels.hpp"
-#include "caffe/greentea/greentea_math_functions.hpp"
+#include "caffe/util/math_functions.hpp"
 #include "caffe/util/fft.hpp"
 
 // #define DEBUG_PROFILE
