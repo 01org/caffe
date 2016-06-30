@@ -7,8 +7,8 @@
 #if defined(USE_GREENTEA) && defined(USE_FFT)
 #include "caffe/device.hpp"
 #include "caffe/greentea/cl_kernels.hpp"
-#include "caffe/util/math_functions.hpp"
 #include "caffe/util/fft.hpp"
+#include "caffe/util/math_functions.hpp"
 
 // #define DEBUG_PROFILE
 
@@ -55,10 +55,10 @@ void fft_gpu_copy2buffer(Dtype* fft_gpu_weights_real, const Dtype* weight,
   viennacl::ocl::kernel & kernel = ctx.get_kernel("kernel_program",
     CL_KERNEL_SELECT("copy2buffer_cyclic_shift_in"));
 
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_fft = clState.get_buffer_mem(fft_gpu_weights_real);  
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_fft = clState.get_buffer_mem(fft_gpu_weights_real);
   ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_fft.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_fft_gpu_weights_real);
   kernel.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
@@ -117,15 +117,15 @@ void fft_gpu_copy2buffer_in_2D(Dtype* map_out, const Dtype* map_in,
       CL_KERNEL_SELECT("copy2buffer_left_top_in_2d"));
   }
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);  
+
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);
   ClMemOff<Dtype> buf_map_in = clState.get_buffer_mem(map_in);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_map_out.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
   kernel.arg(argIdx++, WrapHandle(buf_map_in.memobj, &ctx));
- 
+
   kernel.arg(argIdx++, offset_offset_map_in);
   kernel.arg(argIdx++, map_out_size);
   kernel.arg(argIdx++, size);
@@ -184,10 +184,10 @@ void fft_gpu_copy2buffer_out_forward_2D(Dtype* map_out, int out_offset,
   }
   int argIdx = 0;
 
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);  
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);
   ClMemOff<Dtype> buf_map_in = clState.get_buffer_mem(map_in);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_map_out.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
   kernel.arg(argIdx++, WrapHandle(buf_map_in.memobj, &ctx));
@@ -243,11 +243,11 @@ void fft_gpu_copy2buffer_out_backward(Dtype* map_out, const Dtype* map_in,
   viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("copy2buffer_cyclic_shift_out"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);  
+
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);
   ClMemOff<Dtype> buf_map_in = clState.get_buffer_mem(map_in);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_map_out.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
   kernel.arg(argIdx++, WrapHandle(buf_map_in.memobj, &ctx));
@@ -300,15 +300,15 @@ void fft_gpu_copy2buffer_out_backward_2D(Dtype* map_out, int out_offset,
   viennacl::ocl::kernel &kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("copy2buffer_cyclic_shift_out_2d"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);  
+
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_map_out = clState.get_buffer_mem(map_out);
   ClMemOff<Dtype> buf_map_in = clState.get_buffer_mem(map_in);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_map_out.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_map_out);
   kernel.arg(argIdx++, WrapHandle(buf_map_in.memobj, &ctx));
- 
+
   kernel.arg(argIdx++, offset_offset_map_in);
   kernel.arg(argIdx++, map_out_size);
   kernel.arg(argIdx++, map_in_size);
@@ -358,19 +358,19 @@ void caffe_gpu_elementMulConj_1D(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_conjugate_multiplication_1d"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);  
+
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
   ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_src1 << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src2.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_src2 << 1);
-  kernel.arg(argIdx++, ch_gr);  
+  kernel.arg(argIdx++, ch_gr);
 #ifdef DEBUG_PROFILE
   cl_event event = 0;
   OCL_CHECK(clEnqueueNDRangeKernel(ctx.get_queue().handle().get(), kernel, 1,
@@ -404,13 +404,13 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("convert_data_to_channel_major"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_src1_vec = clState.get_buffer_mem(src1_vec);  
+
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_src1_vec = clState.get_buffer_mem(src1_vec);
   ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_src1_vec.memobj, &ctx));
-  kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx)); 
+  kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
 
   kernel.arg(argIdx++, map_size);
   kernel.arg(argIdx++, ch_gr);
@@ -430,11 +430,11 @@ void caffe_gpu_elementMulConj_Reshape(DtypeComplex<Dtype>* dst,
   size_t global_work_size2[2] = { (size_t)map_size, (size_t)out_gr };
   argIdx = 0;
 
-  ClState& clState = Caffe::cl_state();  
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1_vec = clState.get_buffer_mem(src1_vec);  
+  ClMemOff<Dtype> buf_src1_vec = clState.get_buffer_mem(src1_vec);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel_batchedCdotc.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel_batchedCdotc.arg(argIdx++, WrapHandle(buf_src1_vec.memobj, &ctx));
   kernel_batchedCdotc.arg(argIdx++, WrapHandle(buf_src2.memobj, &ctx));
@@ -476,12 +476,12 @@ void caffe_gpu_elementMulConj_2D(DtypeComplex<Dtype>* dst, int dst_offset,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_conjugate_multiplication_2d"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
@@ -546,11 +546,11 @@ void caffe_gpu_elementMulConj_2D_SLM(DtypeComplex<Dtype>* dst,
       CL_KERNEL_SELECT("complex_conjugate_multiplication_2d_SLM"));
   int argIdx = 0;
 
-  ClState& clState = Caffe::cl_state();  
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
@@ -597,11 +597,11 @@ void caffe_gpu_elementMulConj_3D(DtypeComplex<Dtype>* dst,
       CL_KERNEL_SELECT("complex_conjugate_multiplication_3d"));
   int argIdx = 0;
 
-  ClState& clState = Caffe::cl_state();  
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
@@ -663,12 +663,12 @@ void caffe_gpu_elementMulConj_3D_SLM(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_conjugate_multiplication_3d_SLM"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(
@@ -714,18 +714,18 @@ void caffe_gpu_elementMul_1D(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_multiplication_1d"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_src1 << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src2.memobj, &ctx));
- 
+
   kernel.arg(argIdx++, offset_offset_src2 << 1);
   kernel.arg(argIdx++, size >> 1);
   kernel.arg(argIdx++, ch_gr);
@@ -777,12 +777,12 @@ void caffe_gpu_elementMul_2D_SLM(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_multiplication_2d_SLM"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, local_mem_size_in_bytes);
@@ -827,12 +827,12 @@ void caffe_gpu_elementMul_3D(DtypeComplex<Dtype>* dst,
   viennacl::ocl::kernel kernel = ctx.get_kernel("kernel_program",
       CL_KERNEL_SELECT("complex_multiplication_3d"));
   int argIdx = 0;
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);  
+  ClMemOff<Dtype> buf_src1 = clState.get_buffer_mem(src1);
   ClMemOff<Dtype> buf_src2 = clState.get_buffer_mem(src2);
-  
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, offset_offset_dst << 1);
   kernel.arg(argIdx++, WrapHandle(buf_src1.memobj, &ctx));
@@ -942,11 +942,11 @@ void reshape_weights(DtypeComplex<Dtype>* dst, DtypeComplex<Dtype>* src,
       CL_KERNEL_SELECT("convert_weight_to_channel_major"));
   int argIdx = 0;
   size_t global_work_size[2] = { (size_t)size, (size_t)num_output };
-  
-  ClState& clState = Caffe::cl_state();  
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_dst = clState.get_buffer_mem(dst);
-  ClMemOff<Dtype> buf_src = clState.get_buffer_mem(src);  
-  
+  ClMemOff<Dtype> buf_src = clState.get_buffer_mem(src);
+
   kernel.arg(argIdx++, WrapHandle(buf_dst.memobj, &ctx));
   kernel.arg(argIdx++, WrapHandle(buf_src.memobj, &ctx));
 

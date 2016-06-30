@@ -114,7 +114,7 @@ void ConvolutionLayerFFT<Dtype>::fft_gpu_setup() {
 template <typename Dtype>
 void ConvolutionLayerFFT<Dtype>::fft_gpu_clean() {
   if (fft_gpu_initialized_) {
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     clState.destroy_buffer(fft_gpu_weights_complex_);
     clState.destroy_buffer(fft_gpu_map_in_real_all_channels_);
     clState.destroy_buffer(fft_gpu_map_in_complex_all_channels_);
@@ -124,7 +124,7 @@ void ConvolutionLayerFFT<Dtype>::fft_gpu_clean() {
     clState.destroy_buffer(fft_gpu_map_out_real_);
 #ifdef COMPLEX_NULT_CONJ_RESHAPE
     clReleaseMemObject(fft_gpu_weights_complex_reshape_);
-#endif 
+#endif
   }
   fft_gpu_initialized_ = false;
 }
@@ -412,10 +412,11 @@ void ConvolutionLayerFFT<Dtype>::Backward_gpu(
   Dtype* weight_diff = this->blobs_[0]->mutable_gpu_diff();
 
   if (this->param_propagate_down_[0]) {
-    caffe_gpu_set(this->blobs_[0]->count(), Dtype(0), weight_diff);   
+    caffe_gpu_set(this->blobs_[0]->count(), Dtype(0), weight_diff);
   }
   if (this->bias_term_ && this->param_propagate_down_[1]) {
-    caffe_gpu_set(this->blobs_[1]->count(), Dtype(0), this->blobs_[1]->mutable_gpu_diff());  
+    caffe_gpu_set(this->blobs_[1]->count(), Dtype(0),
+                  this->blobs_[1]->mutable_gpu_diff());
   }
 
 

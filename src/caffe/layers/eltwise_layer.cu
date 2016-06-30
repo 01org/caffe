@@ -84,7 +84,7 @@ void EltwiseLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     viennacl::ocl::context &ctx = viennacl::ocl::get_context(
         this->device_->id());
     viennacl::ocl::program &program = this->device_->program();
-    
+
     switch (op_) {
       case EltwiseParameter_EltwiseOp_PROD:
         caffe_gpu_mul(count, bottom[0]->gpu_data(), bottom[1]->gpu_data(),
@@ -105,12 +105,16 @@ void EltwiseLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
         viennacl::ocl::kernel &oclk_max_forward = program.get_kernel(
             CL_KERNEL_SELECT("eltwise_max_forward"));
-            
+
         ClState& clState = Caffe::cl_state();
-		ClMemOff<Dtype> buf_bottom0 = clState.get_buffer_mem(bottom[0]->gpu_data());
-		ClMemOff<Dtype> buf_bottom1 = clState.get_buffer_mem(bottom[1]->gpu_data());
-		ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-		ClMemOff<int_tp> buf_mask = clState.get_buffer_mem(mask);
+        ClMemOff<Dtype> buf_bottom0 =
+            clState.get_buffer_mem(bottom[0]->gpu_data());
+        ClMemOff<Dtype> buf_bottom1 =
+            clState.get_buffer_mem(bottom[1]->gpu_data());
+        ClMemOff<Dtype> buf_top =
+            clState.get_buffer_mem(top_data);
+        ClMemOff<int_tp> buf_mask =
+            clState.get_buffer_mem(mask);
 
         viennacl::ocl::enqueue(
             oclk_max_forward(count,
@@ -121,7 +125,8 @@ void EltwiseLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
             ctx.get_queue());
 
         for (int_tp i = 2; i < bottom.size(); ++i) {
-          ClMemOff<Dtype> buf_bottomi = clState.get_buffer_mem(bottom[i]->gpu_data());
+          ClMemOff<Dtype> buf_bottomi =
+              clState.get_buffer_mem(bottom[i]->gpu_data());
           viennacl::ocl::enqueue(
               oclk_max_forward(count, WrapHandle(buf_top.memobj, &ctx),
                   WrapHandle(buf_bottomi.memobj, &ctx), i-1,
@@ -134,7 +139,7 @@ void EltwiseLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       default: {
         LOG(FATAL)<< "Unknown elementwise operation.";
       }
-    }  
+    }
 #endif  // USE_GREENTEA
   }
 }
@@ -221,7 +226,7 @@ void EltwiseLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
         const Dtype* bottom_data = bottom[i]->gpu_data();
         Dtype* bottom_diff = bottom[i]->mutable_gpu_diff();
         switch (op_) {
-          case EltwiseParameter_EltwiseOp_PROD: 
+          case EltwiseParameter_EltwiseOp_PROD:
             if (stable_prod_grad_) {
               bool initialized = false;
               for (int_tp j = 0; j < bottom.size(); ++j) {
@@ -241,7 +246,7 @@ void EltwiseLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
             }
             caffe_gpu_mul(count, bottom_diff, top_diff, bottom_diff);
             break;
-          case EltwiseParameter_EltwiseOp_SUM: 
+          case EltwiseParameter_EltwiseOp_SUM:
             if (coeffs_[i] == Dtype(1.)) {
               caffe_copy(count, top_diff, bottom_diff);
             } else {
@@ -250,11 +255,11 @@ void EltwiseLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
             break;
           case EltwiseParameter_EltwiseOp_MAX: {
             mask = max_idx_.gpu_data();
-            
+
             ClState& clState = Caffe::cl_state();
-			ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
-			ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-			ClMemOff<int_tp> buf_mask = clState.get_buffer_mem(mask);
+            ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
+            ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
+            ClMemOff<int_tp> buf_mask = clState.get_buffer_mem(mask);
 
             viennacl::ocl::kernel &oclk_max_backward = program.get_kernel(
                 CL_KERNEL_SELECT("eltwise_max_backward"));
@@ -271,7 +276,7 @@ void EltwiseLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
           }
         }
       }
-    } 
+    }
 #endif
   }
 }

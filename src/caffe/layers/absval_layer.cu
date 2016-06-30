@@ -29,7 +29,7 @@ void AbsValLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
 
     caffe_gpu_sign(count, bottom_data, bottom_diff);
-    caffe_gpu_mul(count, bottom_diff, top_diff, bottom_diff);  
+    caffe_gpu_mul(count, bottom_diff, top_diff, bottom_diff);
   }
 }
 

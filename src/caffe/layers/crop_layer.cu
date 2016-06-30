@@ -133,14 +133,14 @@ void CropLayer<Dtype>::crop_copy_gpu(const vector<Blob<Dtype>*>& bottom,
         ClState& clState = Caffe::cl_state();
         ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
         ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-        
+
         viennacl::ocl::enqueue(
             oclk_copy_crop(lines, height, width, src_outer_stride,
                            src_inner_stride, dest_outer_stride,
                            dest_inner_stride,
                            WrapHandle(buf_bottom.memobj, &ctx), bottom_off,
                            WrapHandle(buf_top.memobj, &ctx), top_off),
-            ctx.get_queue());       
+            ctx.get_queue());
       } else {
         const Dtype* top_diff = top[0]->gpu_diff();
         const int_tp top_off = top[0]->offset(indices);
@@ -150,14 +150,14 @@ void CropLayer<Dtype>::crop_copy_gpu(const vector<Blob<Dtype>*>& bottom,
         ClState& clState = Caffe::cl_state();
         ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
         ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-        
+
         viennacl::ocl::enqueue(
             oclk_copy_crop(lines, height, width, dest_outer_stride,
                            dest_inner_stride, src_outer_stride,
                            src_inner_stride,
                            WrapHandle(buf_top.memobj, &ctx), top_off,
                            WrapHandle(buf_bottom.memobj, &ctx), bottom_off),
-            ctx.get_queue());          
+            ctx.get_queue());
       }
     }
 #endif  // USE_GREENTEA
@@ -182,7 +182,7 @@ void CropLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
   if (propagate_down[0]) {
     caffe_gpu_set(bottom[0]->count(), static_cast<Dtype>(0), bottom_diff);
- 
+
     std::vector<int_tp> indices(top[0]->num_axes(), 0);
     crop_copy_gpu(bottom, top, offsets, indices, 0, top_diff, bottom_diff,
                   false);

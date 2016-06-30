@@ -118,12 +118,12 @@ void LRNLayer<Dtype>::CrossChannelForward_gpu(
     int_tp n_threads = num_ * height_ * width_;
     viennacl::ocl::kernel &oclk_lrn_fill = program.get_kernel(
         CL_KERNEL_SELECT("lrn_fill_scale"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
     ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_data);
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-    
+
     viennacl::ocl::enqueue(
         oclk_lrn_fill(n_threads, WrapHandle(buf_bottom.memobj, &ctx), num_,
                       channels_, height_, width_, size_, alpha_ / size_, k_,
@@ -132,12 +132,12 @@ void LRNLayer<Dtype>::CrossChannelForward_gpu(
     n_threads = bottom[0]->count();
     viennacl::ocl::kernel &oclk_lrn_compute = program.get_kernel(
         CL_KERNEL_SELECT("lrn_compute_output"));
-        
+
     viennacl::ocl::enqueue(
         oclk_lrn_compute(n_threads, WrapHandle(buf_bottom.memobj, &ctx),
                          WrapHandle(buf_scale.memobj, &ctx), -beta_,
                          WrapHandle(buf_top.memobj, &ctx)),
-        ctx.get_queue());  
+        ctx.get_queue());
 #endif  // USE_GREENTEA
   }
 }
@@ -251,12 +251,14 @@ void LRNLayer<Dtype>::CrossChannelBackward_gpu(
         CL_KERNEL_SELECT("lrn_compute_diff"));
 
     ClState& clState = Caffe::cl_state();
-    ClMemOff<Dtype> buf_bottom_data = clState.get_buffer_mem(bottom[0]->gpu_data());
+    ClMemOff<Dtype> buf_bottom_data =
+        clState.get_buffer_mem(bottom[0]->gpu_data());
     ClMemOff<Dtype> buf_top_data = clState.get_buffer_mem(top[0]->gpu_data());
     ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_.gpu_data());
     ClMemOff<Dtype> buf_top_diff = clState.get_buffer_mem(top[0]->gpu_diff());
-    ClMemOff<Dtype> buf_bottom_diff = clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
-    
+    ClMemOff<Dtype> buf_bottom_diff =
+        clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
+
     viennacl::ocl::enqueue(
         oclk_lrn(n_threads, WrapHandle(buf_bottom_data.memobj, &ctx),
                  WrapHandle(buf_top_data.memobj, &ctx),

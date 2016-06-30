@@ -253,7 +253,7 @@ void MergeCropLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
     ClMemOff<int> buf_shape_a = clState.get_buffer_mem(shape_a_.gpu_data());
     ClMemOff<int> buf_shape_b = clState.get_buffer_mem(shape_b_.gpu_data());
-    
+
     switch (op_) {
       case MergeCropParameter_MergeOp_STACK: {
         viennacl::ocl::kernel &oclk_copy_forward = program.get_kernel(
@@ -340,14 +340,14 @@ void MergeCropLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     viennacl::ocl::context &ctx = viennacl::ocl::get_context(
         this->device_->id());
     viennacl::ocl::program &program = this->device_->program();
-    
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom_a = clState.get_buffer_mem(bottom_diff_a);
     ClMemOff<Dtype> buf_bottom_b = clState.get_buffer_mem(bottom_diff_b);
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
     ClMemOff<int> buf_shape_a = clState.get_buffer_mem(shape_a_.gpu_data());
     ClMemOff<int> buf_shape_b = clState.get_buffer_mem(shape_b_.gpu_data());
-    
+
     switch (op_) {
       case MergeCropParameter_MergeOp_STACK: {
         viennacl::ocl::kernel &oclk_copy_backward = program.get_kernel(

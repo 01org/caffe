@@ -66,7 +66,7 @@ void SliceLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                      kForward ? 1 : 0, num_slices_, slice_size_,
                      bottom_slice_axis, top_slice_axis, offset_slice_axis,
                      WrapHandle(top_mem, &ctx)),
-          ctx.get_queue());     
+          ctx.get_queue());
 #endif  // USE_GREENTEA
     }
 
@@ -112,7 +112,7 @@ void SliceLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
                      kForward ? 1 : 0, num_slices_, slice_size_,
                      bottom_slice_axis, top_slice_axis, offset_slice_axis,
                      WrapHandle(bottom_mem, &ctx)),
-          ctx.get_queue());   
+          ctx.get_queue());
 #endif  // USE_GREENTEA
     }
     offset_slice_axis += top_slice_axis;

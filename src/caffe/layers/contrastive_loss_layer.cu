@@ -116,11 +116,15 @@ void ContrastiveLossLayer<Dtype>::Backward_gpu(
         viennacl::ocl::kernel &oclk_cll = program.get_kernel(
             legacy_version ? CL_KERNEL_SELECT("cll_backward_legacy") :
                 CL_KERNEL_SELECT("cll_backward"));
-        ClState& clState = Caffe::cl_state();  
-        ClMemOff<Dtype> buf_bottom2 = clState.get_buffer_mem(bottom[2]->gpu_data());
-        ClMemOff<Dtype> buf_diff = clState.get_buffer_mem(diff_.gpu_data());
-        ClMemOff<Dtype> buf_dist_sq = clState.get_buffer_mem(dist_sq_.gpu_data());
-        ClMemOff<Dtype> buf_bottomi = clState.get_buffer_mem(bottom[i]->mutable_gpu_diff());
+        ClState& clState = Caffe::cl_state();
+        ClMemOff<Dtype> buf_bottom2 =
+            clState.get_buffer_mem(bottom[2]->gpu_data());
+        ClMemOff<Dtype> buf_diff =
+            clState.get_buffer_mem(diff_.gpu_data());
+        ClMemOff<Dtype> buf_dist_sq =
+            clState.get_buffer_mem(dist_sq_.gpu_data());
+        ClMemOff<Dtype> buf_bottomi =
+            clState.get_buffer_mem(bottom[i]->mutable_gpu_diff());
 
         viennacl::ocl::enqueue(
             oclk_cll(

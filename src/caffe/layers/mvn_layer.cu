@@ -17,7 +17,7 @@ void MVNLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     num = bottom[0]->num() * bottom[0]->channels();
 
   int_tp dim = bottom[0]->count() / num;
-  
+
   // subtract mean
   caffe_gpu_gemv<Dtype>(CblasNoTrans, num, dim, 1. / dim, bottom_data,
                         sum_multiplier_.gpu_data(), 0.,
@@ -67,7 +67,7 @@ void MVNLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     num = bottom[0]->num() * bottom[0]->channels();
 
   int_tp dim = bottom[0]->count() / num;
-  
+
   if (this->layer_param_.mvn_param().normalize_variance()) {
     caffe_gpu_mul(temp_.count(), top_data, top_diff, bottom_diff);
     caffe_gpu_gemv<Dtype>(CblasNoTrans, num, dim, 1., bottom_diff,
@@ -106,7 +106,7 @@ void MVNLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
                           temp_.mutable_gpu_data());
     caffe_gpu_add<Dtype>(temp_.count(), top_diff, temp_.gpu_data(),
                          bottom_diff);
-  } 
+  }
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(MVNLayer);

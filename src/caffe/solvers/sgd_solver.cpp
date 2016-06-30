@@ -138,7 +138,7 @@ void SGDSolver<Dtype>::Normalize(int param_id) {
     case Caffe::GPU: {
 #ifndef CPU_ONLY
       caffe_gpu_scal(net_params[param_id]->count(), accum_normalization,
-                     net_params[param_id]->mutable_gpu_diff());     
+                     net_params[param_id]->mutable_gpu_diff());
 #else
       NO_GPU;
 #endif
@@ -199,7 +199,7 @@ void SGDSolver<Dtype>::Regularize(int param_id) {
           LOG(FATAL)<< "Unknown regularization type: "
               << regularization_type;
         }
-      }     
+      }
 #else
       NO_GPU;
 #endif

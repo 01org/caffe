@@ -440,7 +440,7 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_bias(Dtype* bias,
                                                     const int_tp input_off) {
   caffe_gpu_gemv<Dtype>(CblasNoTrans, num_output_, out_spatial_dim_, 1.,
                         input + input_off, bias_multiplier_.gpu_data(), 1.,
-                        bias); 
+                        bias);
 }
 
 template<typename Dtype>

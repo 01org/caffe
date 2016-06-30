@@ -46,11 +46,11 @@ void TileLayer<Dtype>::Forward_gpu(
 
     viennacl::ocl::kernel &oclk_tile = program.get_kernel(
         CL_KERNEL_SELECT("tile"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-    
+
     viennacl::ocl::enqueue(
         oclk_tile(nthreads, WrapHandle(buf_bottom.memobj, &ctx), inner_dim_,
                   tiles_, bottom_tile_axis,
@@ -104,16 +104,16 @@ void TileLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
     viennacl::ocl::kernel &oclk_tile = program.get_kernel(
         CL_KERNEL_SELECT("tile_backward"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-    
+
     viennacl::ocl::enqueue(
         oclk_tile(nthreads, WrapHandle(buf_top.memobj, &ctx), tile_size,
                   tiles_, bottom_tile_axis,
                   WrapHandle(buf_bottom.memobj, &ctx)),
-        ctx.get_queue());    
+        ctx.get_queue());
 #endif  // USE_GREENTEA
   }
 }

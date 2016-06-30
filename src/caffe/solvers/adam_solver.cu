@@ -38,7 +38,7 @@ void adam_update_gpu(device* dev, int_tp N, Dtype* g, Dtype* m, Dtype* v,
     viennacl::ocl::program &program = dev->program();
     viennacl::ocl::kernel &oclk_adam_update = program.get_kernel(
         CL_KERNEL_SELECT("adam_update"));
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> bufg = clState.get_buffer_mem(g);
     ClMemOff<Dtype> bufm = clState.get_buffer_mem(m);
     ClMemOff<Dtype> bufv = clState.get_buffer_mem(v);

@@ -2,7 +2,6 @@
 #define CAFFE_UTIL_CL_STATE_HPP
 #include <CL/cl.h>
 
-#include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,12 +28,13 @@ class ClState {
   ClState();
   ~ClState();
 
-  void* create_buffer(int dev_id, cl_mem_flags flags, size_t size, void* host_ptr, cl_int &errcode);
+  void* create_buffer(int dev_id, cl_mem_flags flags, size_t size,
+                      void* host_ptr, cl_int *errcode);
   void destroy_buffer(void* buffer);
   size_t get_buffer_size(const void* buffer);
   ClMemOff<uint8_t> get_buffer_mem(const void* ptr);
   int get_mem_dev(cl_mem memobj);
-  
+
   template<typename T>
   ClMemOff<T> get_buffer_mem(const T* ptr) {
     ClMemOff<uint8_t> m = get_buffer_mem(static_cast<const void*>(ptr));

@@ -28,8 +28,8 @@ void BatchReindexLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     return;
   }
   if (this->device_->backend() == BACKEND_CUDA) {
-    int_tp threads = top[0]->count();
 #ifdef USE_CUDA
+    int_tp threads = top[0]->count();
     // NOLINT_NEXT_LINE(whitespace/operators)
     BRForward<Dtype> CUDA_KERNEL(CAFFE_GET_BLOCKS(threads),
                                  CAFFE_CUDA_NUM_THREADS) (
@@ -47,10 +47,11 @@ void BatchReindexLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     viennacl::ocl::kernel &oclk_br = program.get_kernel(
         CL_KERNEL_SELECT("br_forward"));
 
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom0 = clState.get_buffer_mem(bottom[0]->gpu_data());
     ClMemOff<Dtype> buf_bottom1 = clState.get_buffer_mem(bottom[1]->gpu_data());
-    ClMemOff<Dtype> buf_top0 = clState.get_buffer_mem(top[0]->mutable_gpu_data());
+    ClMemOff<Dtype> buf_top0 =
+        clState.get_buffer_mem(top[0]->mutable_gpu_data());
 
     viennacl::ocl::enqueue(
         oclk_br(top[0]->count(), bottom[0]->count() / bottom[0]->shape(0),
@@ -143,12 +144,14 @@ void BatchReindexLayer<Dtype>::Backward_gpu(
     viennacl::ocl::kernel &oclk_br = program.get_kernel(
         CL_KERNEL_SELECT("br_backward"));
 
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_top0 = clState.get_buffer_mem(top[0]->gpu_diff());
-    ClMemOff<Dtype> buf_top_indexes = clState.get_buffer_mem(top_indexes.gpu_data());
+    ClMemOff<Dtype> buf_top_indexes =
+        clState.get_buffer_mem(top_indexes.gpu_data());
     ClMemOff<Dtype> buf_begins = clState.get_buffer_mem(begins.gpu_data());
     ClMemOff<Dtype> buf_counts = clState.get_buffer_mem(counts.gpu_data());
-    ClMemOff<Dtype> buf_bottom0 = clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
+    ClMemOff<Dtype> buf_bottom0 =
+        clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
 
     viennacl::ocl::enqueue(
         oclk_br(bottom[0]->count(), bottom[0]->count() / bottom[0]->shape(0),

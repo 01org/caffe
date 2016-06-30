@@ -135,7 +135,7 @@ inline void SyncedMemory::to_cpu() {
         if (!own_zero_copy_data_) {
           caffe_gpu_memcpy(size_, gpu_ptr_, cpu_ptr_);
         } else {
-          ClState& clState = Caffe::cl_state();    
+          ClState& clState = Caffe::cl_state();
           ClMemOff<uint8_t> buf_gpu = clState.get_buffer_mem(gpu_ptr_);
 
           void *mapped_ptr = clEnqueueMapBuffer(ctx.get_queue().handle().get(),
@@ -184,7 +184,8 @@ inline void SyncedMemory::to_gpu() {
         cl_int err;
 
         if (ctx.devices()[0].type() == CL_DEVICE_TYPE_CPU) {
-          gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, size_, NULL, err);
+          gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+            CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, size_, NULL, &err);
           cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
         } else if (device_->is_host_unified()) {
             // auto saved_mode = Caffe::mode();
@@ -194,7 +195,8 @@ inline void SyncedMemory::to_gpu() {
             caffe_memset(size_, 0, cpu_ptr_);
             own_cpu_data_ = true;
 
-            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size_, cpu_ptr_, err);
+            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+              CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size_, cpu_ptr_, &err);
             cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
 
             void *mapped_ptr = clEnqueueMapBuffer(
@@ -213,7 +215,8 @@ inline void SyncedMemory::to_gpu() {
         }
 
         if (cl_gpu_mem_ == nullptr) {
-            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE, size_, NULL, err);
+            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+              CL_MEM_READ_WRITE, size_, NULL, &err);
             cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
         }
 
@@ -251,10 +254,12 @@ inline void SyncedMemory::to_gpu() {
         if (gpu_ptr_ == nullptr) {
           cl_int err;
           if (ctx.devices()[0].type() == CL_DEVICE_TYPE_CPU) {
-            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, size_, NULL, err);
+            gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+              CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, size_, NULL, &err);
             cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
           } else if (ZEROCOPY_SUPPORTED(device_, cpu_ptr_, size_)) {
-              gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size_, cpu_ptr_, err);
+              gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+                CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, size_, cpu_ptr_, &err);
               cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
 
               void *mapped_ptr = clEnqueueMapBuffer(
@@ -272,7 +277,8 @@ inline void SyncedMemory::to_gpu() {
               own_zero_copy_data_ = true;
           }
           if (cl_gpu_mem_ == nullptr) {
-              gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(), CL_MEM_READ_WRITE, size_, NULL, err);
+              gpu_ptr_ = Caffe::cl_state().create_buffer(device_->id(),
+                    CL_MEM_READ_WRITE, size_, NULL, &err);
               cl_gpu_mem_ = Caffe::cl_state().get_buffer_mem(gpu_ptr_).memobj;
           }
           CHECK_EQ(0, err) << "OpenCL buffer allocation of size "
@@ -280,8 +286,7 @@ inline void SyncedMemory::to_gpu() {
           device_->IncreaseMemoryUsage(size_);
           ctx.get_queue().finish();
         }
-        if (!own_zero_copy_data_)
-        {
+        if (!own_zero_copy_data_) {
           caffe_gpu_memcpy(size_, cpu_ptr_, gpu_ptr_);
         }
         ctx.get_queue().finish();

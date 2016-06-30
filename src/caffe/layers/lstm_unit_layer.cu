@@ -205,7 +205,7 @@ void LSTMUnitLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
         CL_KERNEL_SELECT("lstm_unit_backward"));
     viennacl::ocl::kernel &oclk_lstm_acts_backward = program.get_kernel(
         CL_KERNEL_SELECT("lstm_acts_backward"));
-    
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_X_acts = clState.get_buffer_mem(X_acts);
     ClMemOff<Dtype> buf_C_prev = clState.get_buffer_mem(C_prev);
@@ -221,9 +221,12 @@ void LSTMUnitLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
     viennacl::ocl::enqueue(
         oclk_lstm_unit_backward(count, hidden_dim_,
-          WrapHandle(buf_C_prev.memobj, &ctx), WrapHandle(buf_X_acts.memobj, &ctx),
-          WrapHandle(buf_C.memobj, &ctx), WrapHandle(buf_H.memobj, &ctx),
-          WrapHandle(buf_cont.memobj, &ctx), WrapHandle(buf_C_diff.memobj, &ctx),
+          WrapHandle(buf_C_prev.memobj, &ctx),
+          WrapHandle(buf_X_acts.memobj, &ctx),
+          WrapHandle(buf_C.memobj, &ctx),
+          WrapHandle(buf_H.memobj, &ctx),
+          WrapHandle(buf_cont.memobj, &ctx),
+          WrapHandle(buf_C_diff.memobj, &ctx),
           WrapHandle(buf_H_diff.memobj, &ctx),
           WrapHandle(buf_C_prev_diff.memobj, &ctx),
           WrapHandle(buf_X_acts_diff.memobj, &ctx)),

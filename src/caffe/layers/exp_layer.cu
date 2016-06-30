@@ -11,7 +11,7 @@ void ExpLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   const int_tp count = bottom[0]->count();
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
-  
+
   if (inner_scale_ == Dtype(1)) {
     caffe_gpu_exp(count, bottom_data, top_data);
   } else {

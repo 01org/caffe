@@ -531,7 +531,7 @@ inline Dtype Layer<Dtype>::Forward(const vector<Blob<Dtype>*>& bottom,
         Dtype blob_loss = 0;
         caffe_gpu_dot(count, data, loss_weights, &blob_loss);
         loss += blob_loss;
-      }    
+      }
 #endif
       break;
     default:

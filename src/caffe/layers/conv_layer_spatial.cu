@@ -316,10 +316,10 @@ void ConvolutionLayerSpatial<Dtype>::swizzleWeights(
 
   int_tp channels = this->channels_ / this->group_;
 
-  ClState& clState = Caffe::cl_state();  
-  ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight);  
+  ClState& clState = Caffe::cl_state();
+  ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight);
   ClMemOff<Dtype> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
-    
+
   oclk_copy_weight.arg(argIdx++, WrapHandle(buf_weight.memobj, &ctx));
   oclk_copy_weight.arg(argIdx++, WrapHandle(buf_swizzled.memobj, &ctx));
   oclk_copy_weight.arg(argIdx++, kernel_w_);
@@ -481,14 +481,14 @@ cl_int ConvolutionLayerSpatial<float>::convolve(
           * g;
 
       // Copy image
-      ClState& clState = Caffe::cl_state();  
-      ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);  
+      ClState& clState = Caffe::cl_state();
+      ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);
       ClMemOff<float> buf_bottom = clState.get_buffer_mem(bottom_data);
       ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
       ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);
       ClMemOff<float> buf_bias = clState.get_buffer_mem(bias_);
       ClMemOff<float> buf_top = clState.get_buffer_mem(top_data);
-      
+
       if (pad_w_ > 0 || pad_h_ > 0) {
         pad_image(bottom, top, image_offset, config, numImages);
         image_offset = 0;
@@ -558,13 +558,13 @@ cl_int ConvolutionLayerSpatial<float>::batched_convolve(
 
     pad_image(bottom, top, image_offset, config, numImages);
 
-    ClState& clState = Caffe::cl_state();  
-    ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);  
+    ClState& clState = Caffe::cl_state();
+    ClMemOff<float> buf_col = clState.get_buffer_mem(col_data);
     ClMemOff<float> buf_swizzled = clState.get_buffer_mem(swizzled_weights);
     ClMemOff<float> buf_weight = clState.get_buffer_mem(weight);
     ClMemOff<float> buf_bias = clState.get_buffer_mem(bias_);
     ClMemOff<float> buf_top = clState.get_buffer_mem(top_data);
-    
+
     kernel.arg(argIdx++, WrapHandle(buf_col.memobj, &ctx));
     kernel.arg(argIdx++, image_offset);
     if (config->swizzle_weights)

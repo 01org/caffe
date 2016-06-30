@@ -62,7 +62,7 @@ void ConcatLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
       viennacl::ocl::kernel &oclk_concat = program.get_kernel(
           CL_KERNEL_SELECT("concat"));
-      ClState& clState = Caffe::cl_state();  
+      ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
       ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
 
@@ -71,7 +71,7 @@ void ConcatLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                       kForward ? 1 : 0, num_concats_, concat_input_size_,
                       top_concat_axis, bottom_concat_axis, offset_concat_axis,
                       WrapHandle(buf_top.memobj, &ctx)),
-          ctx.get_queue());  
+          ctx.get_queue());
 #endif  // USE_GREENTEA
     }
     offset_concat_axis += bottom_concat_axis;

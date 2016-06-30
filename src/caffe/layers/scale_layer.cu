@@ -38,7 +38,7 @@ void ScaleLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                     const vector<Blob<Dtype>*>& top) {
   const int_tp count = top[0]->count();
   const Dtype* bottom_data = bottom[0]->gpu_data();
-  
+
   if (bottom[0] == top[0]) {
     caffe_copy(bottom[0]->count(), bottom[0]->gpu_data(),
                    temp_.mutable_gpu_data());
@@ -46,16 +46,16 @@ void ScaleLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* scale_data = (
       (bottom.size() > 1) ? bottom[1] : this->blobs_[0].get())->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
-  
-  ClState& clState = Caffe::cl_state();    
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_data);
   ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
   ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-  
+
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(
         this->device_->id());
   viennacl::ocl::program &program = this->device_->program();
-  
+
   if (bias_layer_) {
     const Dtype* bias_data = this->blobs_[bias_param_id_]->gpu_data();
     viennacl::ocl::kernel &oclk_scale_bias_forward = program.get_kernel(
@@ -108,7 +108,7 @@ void ScaleLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
                 temp_.mutable_gpu_data() : bottom[0]->mutable_gpu_diff()));
     caffe_gpu_mul(top[0]->count(), top_diff, bottom_data, product);
     if (!is_eltwise) {
-      Dtype* sum_result = NULL; 
+      Dtype* sum_result = NULL;
       if (inner_dim_ == 1) {
         sum_result = product;
       } else if (sum_result_.count() == 1) {
@@ -126,8 +126,8 @@ void ScaleLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
         sum_result =
             (outer_dim_ == 1) ?
                 scale->mutable_gpu_diff() : sum_result_.mutable_gpu_data();
-        caffe_gpu_gemv<Dtype>(CblasNoTrans, sum_result_.count(), inner_dim_, Dtype(1),
-                       product, sum_mult, Dtype(0), sum_result);
+        caffe_gpu_gemv<Dtype>(CblasNoTrans, sum_result_.count(), inner_dim_,
+                       Dtype(1), product, sum_mult, Dtype(0), sum_result);
       }
       if (outer_dim_ != 1) {
         const Dtype* sum_mult = sum_multiplier_.gpu_data();
@@ -153,15 +153,15 @@ void ScaleLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const Dtype* top_diff = top[0]->gpu_diff();
     const Dtype* scale_data = scale->gpu_data();
     Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
-    
+
     viennacl::ocl::kernel &oclk_scale_forward = program.get_kernel(
         CL_KERNEL_SELECT("scale_forward"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_bottom_diff = clState.get_buffer_mem(bottom_diff);
     ClMemOff<Dtype> buf_top_diff = clState.get_buffer_mem(top_diff);
     ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_data);
-      
+
     viennacl::ocl::enqueue(
         oclk_scale_forward(count, WrapHandle(buf_top_diff.memobj, &ctx),
                            WrapHandle(buf_scale.memobj, &ctx), scale_dim_,

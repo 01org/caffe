@@ -36,8 +36,8 @@ TYPED_TEST(GemmTest, TestGemmCPUGPU) {
 
   caffe_gpu_gemm<TypeParam>(CblasNoTrans, CblasNoTrans, 2, 4, 3, 1.,
     A.gpu_data(), B.gpu_data(), 0., C.mutable_gpu_data());
- 
-   for (int_tp i = 0; i < 8; ++i) {
+
+  for (int_tp i = 0; i < 8; ++i) {
     EXPECT_EQ(C.cpu_data()[i], result[i]);
   }
 

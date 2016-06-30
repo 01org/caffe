@@ -35,7 +35,7 @@ void rmsprop_update_gpu(device* dev, int_tp N, Dtype* g, Dtype* h,
     viennacl::ocl::program &program = dev->program();
     viennacl::ocl::kernel &oclk_rms_prop_update = program.get_kernel(
         CL_KERNEL_SELECT("rms_prop_update"));
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> bufg = clState.get_buffer_mem(g);
     ClMemOff<Dtype> bufh = clState.get_buffer_mem(h);
     viennacl::ocl::enqueue(

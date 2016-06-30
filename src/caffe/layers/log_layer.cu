@@ -11,7 +11,7 @@ void LogLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   const int_tp count = bottom[0]->count();
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
-  
+
   if (input_scale_ == Dtype(1) && input_shift_ == Dtype(0)) {
       caffe_gpu_log(count, bottom_data, top_data);
   } else {
@@ -40,7 +40,7 @@ void LogLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   const Dtype* bottom_data = bottom[0]->gpu_data();
   const Dtype* top_diff = top[0]->gpu_diff();
   Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
-  
+
   caffe_copy(count, bottom_data, bottom_diff);
   if (input_scale_ != Dtype(1)) {
     caffe_gpu_scal(count, input_scale_, bottom_diff);

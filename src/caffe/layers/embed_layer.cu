@@ -70,7 +70,7 @@ void EmbedLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       viennacl::ocl::kernel &oclk_embed = program.get_kernel(
           CL_KERNEL_SELECT("embed_forward"));
 
-      ClState& clState = Caffe::cl_state();  
+      ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
       ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight);
       ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
@@ -84,7 +84,7 @@ void EmbedLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     if (bias_term_) {
       caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, M_, N_, 1, Dtype(1),
                             bias_multiplier_.gpu_data(),
-                            this->blobs_[1]->gpu_data(), Dtype(1), top_data);   
+                            this->blobs_[1]->gpu_data(), Dtype(1), top_data);
     }
 
 #endif  // USE_GREENTEA
@@ -115,7 +115,7 @@ void EmbedLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       viennacl::ocl::kernel &oclk_embed = program.get_kernel(
           CL_KERNEL_SELECT("embed_backward"));
 
-      ClState& clState = Caffe::cl_state();  
+      ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
       ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
       ClMemOff<Dtype> buf_weight = clState.get_buffer_mem(weight_diff);
@@ -124,7 +124,7 @@ void EmbedLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
           oclk_embed(top_count, WrapHandle(buf_bottom.memobj, &ctx),
                      WrapHandle(buf_top.memobj, &ctx), M_, N_, K_,
                      WrapHandle(buf_weight.memobj, &ctx)),
-          ctx.get_queue());     
+          ctx.get_queue());
 #endif  // USE_GREENTEA
     }
   }

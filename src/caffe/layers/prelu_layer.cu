@@ -90,12 +90,12 @@ void PReLULayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   viennacl::ocl::program &program = this->device_->program();
   viennacl::ocl::kernel &oclk_prelu = program.get_kernel(
       CL_KERNEL_SELECT("prelu_forward"));
-  
-  ClState& clState = Caffe::cl_state();    
+
+  ClState& clState = Caffe::cl_state();
   ClMemOff<Dtype> buf_slope = clState.get_buffer_mem(slope_data);
   ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
   ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-  
+
   viennacl::ocl::enqueue(
       oclk_prelu(count, channels, dim, WrapHandle(buf_bottom.memobj, &ctx),
                  WrapHandle(buf_top.memobj, &ctx),
@@ -180,11 +180,12 @@ void PReLULayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
       viennacl::ocl::kernel &oclk_prelu = program.get_kernel(
           CL_KERNEL_SELECT("prelu_param_backward"));
-      ClState& clState = Caffe::cl_state();    
-	  ClMemOff<Dtype> buf_backward_buff = clState.get_buffer_mem(backward_buff_.mutable_gpu_diff());
-	  ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
-	  ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-	    
+      ClState& clState = Caffe::cl_state();
+      ClMemOff<Dtype> buf_backward_buff =
+          clState.get_buffer_mem(backward_buff_.mutable_gpu_diff());
+      ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
+      ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
+
       viennacl::ocl::enqueue(
           oclk_prelu(cdim, bottom[0]->num(), top[0]->offset(1),
                      WrapHandle(buf_top.memobj, &ctx),
@@ -210,19 +211,19 @@ void PReLULayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       int_tp div_factor = channel_shared_ ? channels : 1;
       viennacl::ocl::kernel &oclk_prelu = program.get_kernel(
           CL_KERNEL_SELECT("prelu_backward"));
-             
-      ClState& clState = Caffe::cl_state();    
-	  ClMemOff<Dtype> buf_slope = clState.get_buffer_mem(slope_data);
-	  ClMemOff<Dtype> buf_bottom_data = clState.get_buffer_mem(bottom_data);
-	  ClMemOff<Dtype> buf_bottom_diff = clState.get_buffer_mem(bottom_diff);
-	  ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-	    
+
+      ClState& clState = Caffe::cl_state();
+      ClMemOff<Dtype> buf_slope = clState.get_buffer_mem(slope_data);
+      ClMemOff<Dtype> buf_bottom_data = clState.get_buffer_mem(bottom_data);
+      ClMemOff<Dtype> buf_bottom_diff = clState.get_buffer_mem(bottom_diff);
+      ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
+
       viennacl::ocl::enqueue(
           oclk_prelu(count, channels, dim, WrapHandle(buf_top.memobj, &ctx),
                      WrapHandle(buf_bottom_data.memobj, &ctx),
                      WrapHandle(buf_bottom_diff.memobj, &ctx),
                      WrapHandle(buf_slope.memobj, &ctx), div_factor),
-          ctx.get_queue());       
+          ctx.get_queue());
     }
 #endif  // USE_GREENTEA
   }

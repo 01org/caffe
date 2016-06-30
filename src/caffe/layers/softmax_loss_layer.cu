@@ -42,7 +42,7 @@ template<typename Dtype>
 void SoftmaxWithLossLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
- 
+
   if (this->device_->backend() == BACKEND_CUDA) {
 #ifdef USE_CUDA
     const Dtype* prob_data = prob_.gpu_data();
@@ -82,28 +82,32 @@ void SoftmaxWithLossLayer<Dtype>::Forward_gpu(
       viennacl::ocl::context &ctx = viennacl::ocl::get_context(
           this->device_->id());
       viennacl::ocl::program &program = this->device_->program();
-        
+
       ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_prob = clState.get_buffer_mem(prob_.gpu_data());
       ClMemOff<Dtype> buf_label = clState.get_buffer_mem(bottom[1]->gpu_data());
-      ClMemOff<Dtype> buf_loss = clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
-      ClMemOff<Dtype> buf_counts = clState.get_buffer_mem(prob_.mutable_gpu_diff());
-             
+      ClMemOff<Dtype> buf_loss =
+          clState.get_buffer_mem(bottom[0]->mutable_gpu_diff());
+      ClMemOff<Dtype> buf_counts =
+          clState.get_buffer_mem(prob_.mutable_gpu_diff());
+
       Dtype* loss_data = bottom[0]->mutable_gpu_diff();
       Dtype* counts = prob_.mutable_gpu_diff();
       const int_tp dim = prob_.count() / outer_num_;
       const int_tp nthreads = outer_num_ * inner_num_;
-                
+
       viennacl::ocl::kernel &oclk_softmax_loss_forward = program.get_kernel(
           CL_KERNEL_SELECT("softmax_loss_forward"));
       viennacl::ocl::enqueue(
           oclk_softmax_loss_forward(nthreads, WrapHandle(buf_prob.memobj, &ctx),
                                     WrapHandle(buf_label.memobj, &ctx),
-                                    WrapHandle(buf_loss.memobj, &ctx), outer_num_, dim,
+                                    WrapHandle(buf_loss.memobj, &ctx),
+                                    outer_num_, dim,
                                     inner_num_, has_ignore_label_ ? 1 : 0,
-                                    ignore_label_, WrapHandle(buf_counts.memobj, &ctx)),
+                                    ignore_label_,
+                                    WrapHandle(buf_counts.memobj, &ctx)),
           ctx.get_queue());
-                   
+
       Dtype loss;
       caffe_gpu_asum(nthreads, loss_data, &loss);
       Dtype valid_count = -1;
@@ -157,7 +161,7 @@ void SoftmaxWithLossLayer<Dtype>::Backward_gpu(
     LOG(FATAL) <<
         this->type() << " Layer cannot backpropagate to label inputs.";
   }
-  if (propagate_down[0]) { 
+  if (propagate_down[0]) {
     if (this->device_->backend() == BACKEND_CUDA) {
 #ifdef USE_CUDA
       Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
@@ -203,16 +207,17 @@ void SoftmaxWithLossLayer<Dtype>::Backward_gpu(
       viennacl::ocl::program &program = this->device_->program();
       viennacl::ocl::kernel &oclk_softmax_loss_backward = program.get_kernel(
           CL_KERNEL_SELECT("softmax_loss_backward"));
-        
-      ClState& clState = Caffe::cl_state();    
+
+      ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_label = clState.get_buffer_mem(label);
       ClMemOff<Dtype> buf_counts = clState.get_buffer_mem(counts);
       ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
       ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-    
+
       viennacl::ocl::enqueue(
           oclk_softmax_loss_backward(nthreads, WrapHandle(buf_top.memobj, &ctx),
-              WrapHandle(buf_label.memobj, &ctx), WrapHandle(buf_bottom.memobj, &ctx),
+              WrapHandle(buf_label.memobj, &ctx),
+              WrapHandle(buf_bottom.memobj, &ctx),
               outer_num_, dim, inner_num_, has_ignore_label_ ? 1 : 0,
               ignore_label_, WrapHandle(buf_counts.memobj, &ctx)),
           ctx.get_queue());
@@ -226,7 +231,7 @@ void SoftmaxWithLossLayer<Dtype>::Backward_gpu(
       get_normalizer(normalization_, valid_count);
       caffe_gpu_scal(prob_.count(), loss_weight , bottom_diff);
 #endif  // USE_GREENTEA
-    }   
+    }
   }
 }
 

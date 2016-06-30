@@ -34,7 +34,7 @@ void sgd_update_gpu(device* dev, int_tp N, Dtype* g, Dtype* h, Dtype momentum,
     viennacl::ocl::kernel &oclk_sgd_update = program.get_kernel(
         CL_KERNEL_SELECT("sgd_update"));
 
-    ClState& clState = Caffe::cl_state();  
+    ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> bufg = clState.get_buffer_mem(g);
     ClMemOff<Dtype> bufh = clState.get_buffer_mem(h);
 
@@ -42,7 +42,7 @@ void sgd_update_gpu(device* dev, int_tp N, Dtype* g, Dtype* h, Dtype momentum,
         oclk_sgd_update(N, WrapHandle(bufg.memobj, &ctx),
                         WrapHandle(bufh.memobj, &ctx), momentum, local_rate),
         ctx.get_queue());
- 
+
 #endif  // USE_GREENTEA
   }
 }

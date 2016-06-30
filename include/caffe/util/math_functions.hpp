@@ -179,7 +179,7 @@ inline void caffe_gpu_memset(const uint_tp N, const int_tp alpha, void* X) {
 }
 #else
 void caffe_gpu_memset(const uint_tp N, const int_tp alpha, void* X);
-#endif // USE_CUDA
+#endif  // USE_CUDA
 
 template<typename Dtype>
 void caffe_gpu_add_scalar(const int_tp N, const Dtype alpha, Dtype *X);
@@ -272,7 +272,7 @@ void caffe_gpu_##name<double>(const int_tp n, const double* x, double* y) { \
   name##_kernel<double><<<CAFFE_GET_BLOCKS(n), CAFFE_CUDA_NUM_THREADS>>>( \
       n, x, y); \
 }
-#endif // USE_CUDA
+#endif  // USE_CUDA
 #endif  // !CPU_ONLY
 
 }  // namespace caffe

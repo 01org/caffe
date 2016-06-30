@@ -985,7 +985,7 @@ void Net<Dtype>::ClearParamDiffs() {
     case Caffe::GPU:
 #ifndef CPU_ONLY
       caffe_gpu_set(blob->count(), static_cast<Dtype>(0),
-                    blob->mutable_gpu_diff());    
+                    blob->mutable_gpu_diff());
 #else
         NO_GPU;
 #endif

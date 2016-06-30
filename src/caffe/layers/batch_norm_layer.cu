@@ -172,7 +172,7 @@ void BatchNormLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   // note: temp_ still contains sqrt(var(X)+eps), computed during the forward
   // pass.
   caffe_gpu_div<Dtype>(temp_.count(), bottom_diff, temp_.gpu_data(),
-                       bottom_diff); 
+                       bottom_diff);
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(BatchNormLayer);

@@ -50,16 +50,16 @@ void DropoutLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     if (this->phase_ == TRAIN) {
       uint_tp* mask =
           static_cast<uint_tp*>(rand_vec_.mutable_gpu_data());
-      caffe_gpu_rng_uniform(count, (uint_tpc*) (mask));
+      caffe_gpu_rng_uniform(count, reinterpret_cast<uint_tpc*> (mask));
       // set thresholds
       viennacl::ocl::kernel &oclk_dropout = program.get_kernel(
           CL_KERNEL_SELECT("dropout_forward"));
-      
+
       ClState& clState = Caffe::cl_state();
       ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
       ClMemOff<unsigned int> buf_mask = clState.get_buffer_mem(mask);
       ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-      
+
       viennacl::ocl::enqueue(
           oclk_dropout(count, WrapHandle(buf_bottom.memobj, &ctx),
                        WrapHandle(buf_mask.memobj, &ctx), uint_thres_, scale_,
@@ -67,7 +67,7 @@ void DropoutLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
           ctx.get_queue());
     } else {
       caffe_copy(count, bottom_data, top_data);
-    }  
+    }
 #endif  // USE_GREENTEA
   }
 }
@@ -119,12 +119,12 @@ void DropoutLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
         const int_tp count = bottom[0]->count();
         viennacl::ocl::kernel &oclk_dropout = program.get_kernel(
             CL_KERNEL_SELECT("dropout_backward"));
-            
+
         ClState& clState = Caffe::cl_state();
         ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
         ClMemOff<unsigned int> buf_mask = clState.get_buffer_mem(mask);
         ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_diff);
-        
+
         viennacl::ocl::enqueue(
             oclk_dropout(count, WrapHandle(buf_top.memobj, &ctx),
                          WrapHandle(buf_mask.memobj, &ctx), uint_thres_, scale_,
@@ -132,7 +132,7 @@ void DropoutLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
             ctx.get_queue());
       } else {
         caffe_copy(top[0]->count(), top_diff, bottom_diff);
-      }     
+      }
 #endif  // USE_GREENTEA
     }
   }

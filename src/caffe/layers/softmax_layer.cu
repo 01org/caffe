@@ -149,11 +149,11 @@ void SoftmaxLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
     viennacl::ocl::kernel &oclk_channel_max = program.get_kernel(
         CL_KERNEL_SELECT("kernel_channel_max"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
     ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_data);
-    
+
     viennacl::ocl::enqueue(
         oclk_channel_max(outer_num_, channels, inner_num_,
                          WrapHandle(buf_top.memobj, &ctx),
@@ -234,13 +234,13 @@ void SoftmaxLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
     viennacl::ocl::kernel &oclk_channel_dot = program.get_kernel(
         CL_KERNEL_SELECT("kernel_channel_dot"));
-        
+
     ClState& clState = Caffe::cl_state();
     ClMemOff<Dtype> buf_top_diff = clState.get_buffer_mem(top_diff);
     ClMemOff<Dtype> buf_top_data = clState.get_buffer_mem(top_data);
     ClMemOff<Dtype> buf_scale = clState.get_buffer_mem(scale_data);
     ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_diff);
-    
+
     viennacl::ocl::enqueue(
         oclk_channel_dot(outer_num_, channels, inner_num_,
                          WrapHandle(buf_top_diff.memobj, &ctx),

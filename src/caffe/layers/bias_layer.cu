@@ -31,7 +31,7 @@ void BiasLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* bias_data =
       ((bottom.size() > 1) ? bottom[1] : this->blobs_[0].get())->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
-  
+
   if (this->device_->backend() == BACKEND_CUDA) {
 #ifdef USE_CUDA
     BiasForward<Dtype>  // NOLINT_NEXT_LINE(whitespace/operators)
@@ -46,15 +46,15 @@ void BiasLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     viennacl::ocl::kernel &oclk_bias_forward = program.get_kernel(
         CL_KERNEL_SELECT("bias_forward"));
     ClState& clState = Caffe::cl_state();
-	ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
-	ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
-	ClMemOff<Dtype> buf_bias = clState.get_buffer_mem(bias_data);
+    ClMemOff<Dtype> buf_bottom = clState.get_buffer_mem(bottom_data);
+    ClMemOff<Dtype> buf_top = clState.get_buffer_mem(top_data);
+    ClMemOff<Dtype> buf_bias = clState.get_buffer_mem(bias_data);
 
-	viennacl::ocl::enqueue(
+    viennacl::ocl::enqueue(
         oclk_bias_forward(count, WrapHandle(buf_bottom.memobj, &ctx),
                           WrapHandle(buf_bias.memobj, &ctx), bias_dim_,
                           inner_dim_, WrapHandle(buf_top.memobj, &ctx)),
-        ctx.get_queue());      
+        ctx.get_queue());
 #endif  // USE_GREENTEA
   }
 }
@@ -83,7 +83,7 @@ void BiasLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
         top_diff += dim_;
         accum = true;
       }
-    } 
+    }
 }
 
 INSTANTIATE_LAYER_GPU_FUNCS(BiasLayer);
