@@ -37,36 +37,13 @@ void im2col_gpu(const Dtype *data_im,
   int offset_data_im = buf_data_im.offset;
   int offset_data_col = buf_data_col.offset;
 
-  uint mem_base_address_align;
-  clGetDeviceInfo(ctx.devices()[dev_id].id(), CL_DEVICE_MEM_BASE_ADDR_ALIGN,
-                  sizeof(uint), &mem_base_address_align, NULL);
-  mem_base_address_align = (mem_base_address_align / 8) / sizeof(Dtype);
-
-  size_t aligned_offset_data_im =
-    static_cast<int>(offset_data_im /
-    (static_cast<float>(mem_base_address_align))) * mem_base_address_align;
-  cl_int offset_offset_data_im =
-    ((offset_data_im / (static_cast<float>(mem_base_address_align))) -
-    aligned_offset_data_im / mem_base_address_align) * mem_base_address_align;
-  cl_mem bufDataIm = clState.create_subbuffer(data_im, aligned_offset_data_im);
-
-  size_t aligned_offset_data_col =
-    (static_cast<int>(offset_data_col /
-    (static_cast<float>(mem_base_address_align)))) * mem_base_address_align;
-  cl_int offset_offset_data_col =
-    ((offset_data_col / (static_cast<float>(mem_base_address_align))) -
-    aligned_offset_data_col / mem_base_address_align) *
-    mem_base_address_align;
-  cl_mem bufDataCol =
-    clState.create_subbuffer(data_col, aligned_offset_data_col);
-
   viennacl::ocl::kernel &kernel = prog.get_kernel(CL_KERNEL_SELECT("im2col"));
 
   viennacl::ocl::enqueue(
-    kernel(num_kernels, WrapHandle(bufDataIm, &ctx), offset_offset_data_im,
+    kernel(num_kernels, WrapHandle(buf_data_im.memobj, &ctx), offset_data_im,
            height, width, kernel_h, kernel_w, pad_h, pad_w, stride_h,
            stride_w, dilation_h, dilation_w, height_col, width_col,
-           WrapHandle(bufDataCol, &ctx), offset_offset_data_col),
+           WrapHandle(buf_data_col.memobj, &ctx), offset_data_col),
     ctx.get_queue());
 }
 
@@ -124,36 +101,13 @@ void col2im_gpu(const Dtype *data_col, const int_tp channels,
   int offset_data_im = buf_data_im.offset;
   int offset_data_col = buf_data_col.offset;
 
-  uint mem_base_address_align;
-  clGetDeviceInfo(ctx.devices()[dev_id].id(), CL_DEVICE_MEM_BASE_ADDR_ALIGN,
-                  sizeof(uint), &mem_base_address_align, NULL);
-  mem_base_address_align = (mem_base_address_align / 8) / sizeof(Dtype);
-
-  size_t aligned_offset_data_im =
-    static_cast<int>(offset_data_im /
-    (static_cast<float>(mem_base_address_align))) * mem_base_address_align;
-  cl_int offset_offset_data_im =
-    ((offset_data_im / (static_cast<float>(mem_base_address_align))) -
-    aligned_offset_data_im / mem_base_address_align) * mem_base_address_align;
-  cl_mem bufDataIm = clState.create_subbuffer(data_im, aligned_offset_data_im);
-
-  size_t aligned_offset_data_col =
-    (static_cast<int>(offset_data_col /
-    (static_cast<float>(mem_base_address_align)))) * mem_base_address_align;
-  cl_int offset_offset_data_col =
-    ((offset_data_col / (static_cast<float>(mem_base_address_align))) -
-    aligned_offset_data_col / mem_base_address_align) *
-    mem_base_address_align;
-  cl_mem bufDataCol =
-    clState.create_subbuffer(data_col, aligned_offset_data_col);
-
   viennacl::ocl::kernel &kernel = prog.get_kernel(CL_KERNEL_SELECT("col2im"));
 
   viennacl::ocl::enqueue(
-    kernel(num_kernels, WrapHandle(bufDataCol, &ctx), offset_offset_data_col,
+    kernel(num_kernels, WrapHandle(buf_data_col.memobj, &ctx), offset_data_col,
            height, width, channels, kernel_h, kernel_w, pad_h, pad_w,
            stride_h, stride_w, dilation_h, dilation_w, height_col, width_col,
-           WrapHandle(bufDataIm, &ctx), offset_offset_data_im),
+           WrapHandle(buf_data_im.memobj, &ctx), offset_data_im),
     ctx.get_queue());
 }
 
@@ -207,7 +161,7 @@ void im2col_nd_gpu(const Dtype* data_im, const int_tp num_spatial_axes,
       CL_KERNEL_SELECT("im2col_nd"));
 
   viennacl::ocl::enqueue(
-      kernel(num_kernels, num_spatial_axes, (int_tp)0,
+      kernel(num_kernels, num_spatial_axes, (int_tp)(buf_im_shape.offset),
              WrapHandle(buf_data_im.memobj, &ctx), (int_tp)buf_data_im.offset,
              WrapHandle(buf_im_shape.memobj, &ctx),
              WrapHandle(buf_col_shape.memobj, &ctx),
@@ -268,7 +222,7 @@ void col2im_nd_gpu(const Dtype* data_col, const int_tp num_spatial_axes,
       CL_KERNEL_SELECT("col2im_nd"));
 
   viennacl::ocl::enqueue(
-    kernel(im_size, num_spatial_axes, (int_tp)0,
+    kernel(im_size, num_spatial_axes, (int_tp)(buf_im_shape.offset),
            WrapHandle(buf_data_col.memobj, &ctx), (int_tp)buf_data_col.offset,
            WrapHandle(buf_im_shape.memobj, &ctx),
            WrapHandle(buf_col_shape.memobj, &ctx),
