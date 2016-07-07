@@ -136,6 +136,18 @@ if (USE_ISAAC)
   set(HAVE_ISAAC TRUE)
 endif()
 
+
+# ---[ CLBLAST
+if (USE_CLBLAST)
+  find_package(CLBlast)
+  if (NOT CLBLAST_FOUND)
+    message(FATAL_ERROR "CLBlast required but not found.")
+  endif()
+  # include_directories(SYSTEM ${CLBLAS_INCLUDE_DIR})
+  list(APPEND Caffe_LINKER_LIBS ${CLBLAST_LIBRARY})
+  set(HAVE_CLBLAST TRUE)
+endif()
+
 # ---[ OpenCV
 if(USE_OPENCV)
   find_package(OpenCV QUIET COMPONENTS core highgui imgproc imgcodecs)

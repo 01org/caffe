@@ -24,6 +24,9 @@
 #cmakedefine HAVE_CLBLAS
 #cmakedefine USE_CLBLAS
 
+/* CLBlast */
+#cmakedefine HAVE_CLBLAST
+#cmakedefine USE_CLBLAST
 /* NVIDA cuDNN */
 #cmakedefine HAVE_CUDNN
 #cmakedefine USE_CUDNN

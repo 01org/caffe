@@ -32,6 +32,7 @@ caffe_option(USE_CUDA "Build Caffe with CUDA support" ON)
 caffe_option(USE_GREENTEA "Build Caffe with OpenCL support" ON)
 caffe_option(USE_LIBDNN "Build Caffe with OpenCL libdnn" OFF)
 caffe_option(USE_CLBLAS "Build Caffe with clBLAS support (instead of using ViennaClBLAS)" OFF)
+caffe_option(USE_CLBLAST "Build Caffe with CLBlast support (instead of using ViennaClBLAS)" OFF)
 caffe_option(USE_ISAAC "Build Caffe with ISAAC support (instead of using ViennaClBLAS)" OFF)
 caffe_option(USE_CUDNN "Build Caffe with cuDNN libary support" OFF)
 caffe_option(BUILD_SHARED_LIBS "Build shared libraries" ON)
@@ -56,6 +57,10 @@ endif()
 
 if(USE_ISAAC)
   set(USE_CLBLAS ON)
+endif()
+
+if(USE_CLBLAST)
+  set(USE_CLBLAS OFF)
 endif()
 
 # ---[ Dependencies
