@@ -1,5 +1,6 @@
 #if USE_MKL
-#include <mkl.h>
+#include <mkl_vml_functions.h>
+#include <mkl_vsl.h>
 #endif
 
 #ifdef _OPENMP
@@ -13,9 +14,9 @@
 #include <limits>
 
 #include "caffe/common.hpp"
+#include "caffe/util/cpu_info.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
-
 
 namespace caffe {
 
@@ -70,9 +71,10 @@ void caffe_set(const int N, const Dtype alpha, Dtype* Y) {
   // threashold 12*4 cachelines per thread then no parallelization is to be made
   #ifdef _OPENMP
 
-  // TODO: Threshold is a function of num threads and CPU speed and constant
-  int threshold = omp_get_max_threads() * 768;
-  bool run_parallel = true;
+  int nthr = omp_get_max_threads();
+  int threshold = nthr * caffe::cpu::OpenMpManager::getProcessorSpeedMHz() / 3;
+  bool run_parallel =  // Do not do parallel computation from non major threads
+       caffe::cpu::OpenMpManager::isMajorThread(boost::this_thread::get_id());
 
   // Note: we Assume GPU's CPU path is single threaded
   if (omp_in_parallel() == 0) {
@@ -128,10 +130,10 @@ void caffe_cpu_copy(const int N, const Dtype* X, Dtype* Y) {
   if (X == Y) return;
 
   #ifdef _OPENMP
-
-  // TODO: Threshold is a function of num threads and CPU speed and constant
-  const int threshold = omp_get_max_threads() * 768;
+  int nthr = omp_get_max_threads();
+  int threshold = nthr * caffe::cpu::OpenMpManager::getProcessorSpeedMHz() / 3;
   const bool run_parallel =
+    caffe::cpu::OpenMpManager::isMajorThread(boost::this_thread::get_id()) &&
     (Caffe::mode() != Caffe::GPU) &&
     (omp_in_parallel() == 0) &&
     (N >= threshold);
@@ -388,8 +390,7 @@ static void bernoulli_generate(int n, double p, int* r) {
 
 #ifdef _OPENMP
   int nthr = omp_get_max_threads();
-  // TODO: Threshold is a function of num threads and CPU speed and constant
-  int threshold = nthr * 768;
+  int threshold = nthr * caffe::cpu::OpenMpManager::getProcessorSpeedMHz() / 3;
   bool run_parallel =
     (Caffe::mode() != Caffe::GPU) &&
     (omp_in_parallel() == 0) &&
@@ -408,12 +409,14 @@ static void bernoulli_generate(int n, double p, int* r) {
     const int my_offset = 0;
 #endif
 
-    VSLStreamStatePtr stream;
-    vslNewStream(&stream, VSL_BRNG_MCG31, seed);
-    vslSkipAheadStream(stream, my_offset);
-    viRngBernoulli(VSL_RNG_METHOD_BERNOULLI_ICDF, stream, my_amount,
-      r + my_offset, p);
-    vslDeleteStream(&stream);
+    if (my_amount > 0) {
+      VSLStreamStatePtr stream;
+      vslNewStream(&stream, VSL_BRNG_MCG31, seed);
+      vslSkipAheadStream(stream, my_offset);
+      viRngBernoulli(VSL_RNG_METHOD_BERNOULLI_ICDF, stream, my_amount,
+        r + my_offset, p);
+      vslDeleteStream(&stream);
+    }
   }
 }
 #endif

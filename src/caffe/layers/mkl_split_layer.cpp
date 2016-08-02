@@ -1,4 +1,4 @@
-#if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#if defined(MKL2017_SUPPORTED)
 #include <vector>
 
 #include "caffe/layers/mkl_layers.hpp"
@@ -8,8 +8,7 @@ namespace caffe {
 
 template <typename Dtype>
 MKLSplitLayer<Dtype>::~MKLSplitLayer() {
-  if (sumPrimitive != NULL)
-    dnnDelete<Dtype>(sumPrimitive);
+  dnnDelete<Dtype>(sumPrimitive);
 }
 
 template <typename Dtype>
@@ -17,9 +16,6 @@ void MKLSplitLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   num_tops = top.size();
   size_t dim_src = bottom[0]->shape().size();
-  size_t dim_dst = dim_src;
-
-  dnnError_t e;
 
   size_t sizes_src[dim_src], strides_src[dim_src];
   for (size_t d = 0; d < dim_src; ++d) {
@@ -29,17 +25,13 @@ void MKLSplitLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   for (size_t i = 0; i < num_tops; ++i) {
     bwd_top_diff.push_back(shared_ptr<MKLDiff<Dtype> >(new MKLDiff<Dtype>));
-    e = dnnLayoutCreate<Dtype>(&(bwd_top_diff[i]->layout_usr), dim_src,
-        sizes_src, strides_src);
-    CHECK_EQ(e, E_SUCCESS);
+    bwd_top_diff[i]->create_user_layout(dim_src, sizes_src, strides_src);
   }
 
   // Blob-wise coefficients for the elementwise operation.
   coeffs_ = vector<Dtype>(top.size(), 1);
 
-  e = dnnLayoutCreate<Dtype>(&bwd_bottom_diff->layout_usr, dim_src,
-    sizes_src, strides_src);
-  CHECK_EQ(e, E_SUCCESS);
+  bwd_bottom_diff->create_user_layout(dim_src, sizes_src, strides_src);
 }
 
 template <typename Dtype>
@@ -106,17 +98,12 @@ void MKLSplitLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
         int_layout, &coeffs_[0]);
       CHECK_EQ(e, E_SUCCESS);
 
-      e = dnnLayoutCreateFromPrimitive<Dtype>(&bwd_bottom_diff->layout_int,
-        sumPrimitive, dnnResourceDst);
-      CHECK_EQ(e, E_SUCCESS);
-      bwd_bottom_diff->create_conversions();
+      bwd_bottom_diff->create_internal_layout(sumPrimitive, dnnResourceDst);
 
       for (size_t i = 0; i < num_tops; ++i) {
         if (top[i]->prv_diff() == NULL) {
-          e = dnnLayoutCreateFromPrimitive<Dtype>(&bwd_top_diff[i]->layout_int,
-            sumPrimitive, (dnnResourceType_t)(dnnResourceMultipleSrc + i));
-          CHECK_EQ(e, E_SUCCESS);
-          bwd_top_diff[i]->create_conversions();
+          bwd_top_diff[i]->create_internal_layout(sumPrimitive,
+                  (dnnResourceType_t)(dnnResourceMultipleSrc + i));
         }
       }
     }
@@ -140,10 +127,10 @@ void MKLSplitLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
   }
 
   if (bwd_bottom_diff->convert_from_int) {
-    bottom[0]->set_prv_diff(bwd_bottom_diff->internal_ptr,
+    bottom[0]->set_prv_diff(bwd_bottom_diff->prv_ptr(),
         bwd_bottom_diff, false);
     sum_res[dnnResourceDst] =
-        reinterpret_cast<void*>(bwd_bottom_diff->internal_ptr);
+        reinterpret_cast<void*>(bwd_bottom_diff->prv_ptr());
   } else {
     sum_res[dnnResourceDst] =
         reinterpret_cast<void*>(bottom[0]->mutable_cpu_diff());
@@ -167,4 +154,4 @@ void MKLSplitLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
 INSTANTIATE_CLASS(MKLSplitLayer);
 }  // namespace caffe
-#endif  // #if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#endif  // #if defined(MKL2017_SUPPORTED)

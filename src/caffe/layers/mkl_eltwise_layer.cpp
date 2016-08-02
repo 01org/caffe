@@ -1,4 +1,4 @@
-#if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#if defined(MKL2017_SUPPORTED)
 #include <cfloat>
 #include <vector>
 
@@ -9,8 +9,7 @@ namespace caffe {
 
 template <typename Dtype>
 MKLEltwiseLayer<Dtype>::~MKLEltwiseLayer() {
-  if (sumPrimitive != NULL)
-    dnnDelete<Dtype>(sumPrimitive);
+  dnnDelete<Dtype>(sumPrimitive);
 }
 
 template <typename Dtype>
@@ -40,10 +39,6 @@ void MKLEltwiseLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   num_bottoms = bottom.size();
   size_t dim_src = bottom[0]->shape().size();
-  size_t dim_dst = dim_src;
-
-  dnnError_t e;
-
   size_t sizes_src[dim_src], strides_src[dim_src];
   for (size_t d = 0; d < dim_src; ++d) {
       sizes_src[d] = bottom[0]->shape()[dim_src - d - 1];
@@ -54,14 +49,10 @@ void MKLEltwiseLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       fwd_bottom_data.push_back(
         shared_ptr<MKLData<Dtype> >(new MKLData<Dtype>));
       CHECK_EQ(dim_src, bottom[i]->shape().size());
-      e = dnnLayoutCreate<Dtype>(&(fwd_bottom_data[i]->layout_usr),
-         dim_src, sizes_src, strides_src);
-      CHECK_EQ(e, E_SUCCESS);
+      fwd_bottom_data[i]->create_user_layout(dim_src, sizes_src, strides_src);
   }
 
-  e = dnnLayoutCreate<Dtype>(&fwd_top_data->layout_usr,
-    dim_src, sizes_src, strides_src);
-  CHECK_EQ(e, E_SUCCESS);
+  fwd_top_data->create_user_layout(dim_src, sizes_src, strides_src);
 }
 
 template <typename Dtype>
@@ -116,18 +107,12 @@ void MKLEltwiseLayer<Dtype>::Forward_cpu(
         num_bottoms, int_layout, &coeffs_[0]);
       CHECK_EQ(e, E_SUCCESS);
 
-      e = dnnLayoutCreateFromPrimitive<Dtype>(&fwd_top_data->layout_int,
-        sumPrimitive, dnnResourceDst);
-      CHECK_EQ(e, E_SUCCESS);
-      fwd_top_data->create_conversions();
+      fwd_top_data->create_internal_layout(sumPrimitive, dnnResourceDst);
 
       for (int i = 0; i < num_bottoms; ++i) {
         if (bottom[i]->prv_data() == NULL) {
-          e = dnnLayoutCreateFromPrimitive<Dtype>(
-            &fwd_bottom_data[i]->layout_int, sumPrimitive,
+          fwd_bottom_data[i]->create_internal_layout(sumPrimitive,
               (dnnResourceType_t)(dnnResourceMultipleSrc + i));
-          CHECK_EQ(e, E_SUCCESS);
-          fwd_bottom_data[i]->create_conversions();
         }
       }
     }
@@ -153,9 +138,9 @@ void MKLEltwiseLayer<Dtype>::Forward_cpu(
     }
 
     if (fwd_top_data->convert_from_int) {
-      top[0]->set_prv_data(fwd_top_data->internal_ptr, fwd_top_data, false);
+      top[0]->set_prv_data(fwd_top_data->prv_ptr(), fwd_top_data, false);
       eltwise_res[dnnResourceDst] =
-        reinterpret_cast<void*>(const_cast<Dtype*>(fwd_top_data->internal_ptr));
+        reinterpret_cast<void*>(const_cast<Dtype*>(fwd_top_data->prv_ptr()));
     } else {
       eltwise_res[dnnResourceDst] =
         reinterpret_cast<void*>(const_cast<Dtype*>(top[0]->mutable_cpu_data()));
@@ -176,15 +161,35 @@ void MKLEltwiseLayer<Dtype>::Forward_cpu(
 template <typename Dtype>
 void MKLEltwiseLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
-  const int count = top[0]->count();
-  const Dtype* top_data = top[0]->cpu_data();
-  const Dtype* top_diff = top[0]->cpu_diff();
+
+  const Dtype* top_diff = top[0]->prv_diff();
+  int count = 0;
+  bool is_top_diff_prv = false;
+
+  // If there is no diff in prv layout
+  // then we are given cpu layout
+  // and we will produce bottom at cpu layout as well
+  if (top_diff == NULL) {
+    top_diff = top[0]->cpu_diff();
+    count = top[0]->count();
+  } else {
+    count = top[0]->prv_diff_count();
+    is_top_diff_prv = true;
+  }
+  Dtype* bottom_diff = NULL;
+
   for (int i = 0; i < bottom.size(); ++i) {
     if (propagate_down[i]) {
-      Dtype* bottom_diff = bottom[i]->mutable_cpu_diff();
       switch (op_) {
       case EltwiseParameter_EltwiseOp_SUM:
-        bottom[i]->ShareData(*top[0]);
+        CHECK_EQ(coeffs_[i], Dtype(1)) << "Not supported yet";
+        if (is_top_diff_prv == false) {
+          bottom_diff = bottom[i]->mutable_cpu_diff();
+        } else {
+          bottom_diff = bottom[i]->mutable_prv_diff();
+          bottom[i]->set_prv_descriptor_diff(top[0]->get_prv_descriptor_diff());
+        }
+        caffe_copy(count, top_diff, bottom_diff);
         break;
       case EltwiseParameter_EltwiseOp_MAX:
       case EltwiseParameter_EltwiseOp_PROD:
@@ -210,4 +215,4 @@ void MKLEltwiseLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
 INSTANTIATE_CLASS(MKLEltwiseLayer);
 }  // namespace caffe
-#endif  // #if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#endif  // #if defined(MKL2017_SUPPORTED)
