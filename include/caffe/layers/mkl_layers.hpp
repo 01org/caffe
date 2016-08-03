@@ -12,82 +12,16 @@
 #include "caffe/layers/neuron_layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 
+#include "caffe/mkl_memory.hpp"
 #include "mkl_dnn_cppwrapper.h"
 
 namespace caffe {
-
-template <typename Dtype, bool is_diff>
-struct MKLMemoryDescriptor : PrvMemDescr,
-    boost::enable_shared_from_this<MKLMemoryDescriptor<Dtype, is_diff> > {
-  MKLMemoryDescriptor() : layout_usr(NULL), layout_int(NULL),
-          internal_ptr(NULL), convert_to_int(NULL), convert_from_int(NULL),
-          name("UKNOWN") {}
-  ~MKLMemoryDescriptor() {
-    dnnLayoutDelete<Dtype>(layout_usr);
-    dnnLayoutDelete<Dtype>(layout_int);
-    dnnReleaseBuffer<Dtype>(internal_ptr);
-    dnnDelete<Dtype>(convert_to_int);
-    dnnDelete<Dtype>(convert_from_int);
-  }
-
-  shared_ptr<MKLMemoryDescriptor<Dtype, is_diff> > get_shared_ptr() {
-    return this->shared_from_this();
-  }
-
-  dnnLayout_t layout_usr;
-  dnnLayout_t layout_int;
-  Dtype* internal_ptr;
-  dnnPrimitive_t convert_to_int;
-  dnnPrimitive_t convert_from_int;
-  std::string name;  // for debugging purposes
-  void create_conversions() {
-    if (layout_int
-        && !dnnLayoutCompare<Dtype>(layout_usr, layout_int)) {    
-      CHECK(layout_usr);
-      int status = dnnConversionCreate<Dtype>(&convert_to_int, layout_usr,
-              layout_int);
-      CHECK_EQ(status, 0) << "Failed creation convert_to_int with status "
-              << status << "\n";
-      status = dnnConversionCreate<Dtype>(&convert_from_int, layout_int,
-              layout_usr);
-      CHECK_EQ(status, 0) << "Failed creation convert_from_int with status "
-              << status << "\n";
-      status = dnnAllocateBuffer<Dtype>(
-              reinterpret_cast<void **>(&internal_ptr), layout_int);
-      CHECK_EQ(status, 0)
-              << "Failed internal_ptr memory allocation with status "
-              << status << "\n";
-
-      caffe_set(prv_count(), Dtype(0), internal_ptr);
-      // std::cout << "Conversions created.\n" << std::endl;
-    }
-  }
-  virtual size_t prv_count() {
-      return dnnLayoutGetMemorySize<Dtype>(layout_int) / sizeof(Dtype);
-  }
-  virtual void convert_from_prv(void* prv_ptr, void* cpu_ptr);
-  virtual PrvDescrType get_descr_type() {return PRV_DESCR_MKL2017;}
-
-  // The last get_converted_prv() argument is a hack for reusing
-  // in backward a conversion done already in the forward direction.
-  Dtype* get_converted_prv(Blob<Dtype> * blob, bool set_prv_ptr,
-          MKLMemoryDescriptor<Dtype, is_diff>* converted_in_fwd = NULL);
-};
-
-template <typename Dtype>
-struct MKLData : MKLMemoryDescriptor<Dtype, false>
-{};
-
-template <typename Dtype>
-struct MKLDiff : MKLMemoryDescriptor<Dtype, true>
-{};
 
 template <typename Dtype>
 class MKLConvolutionLayer : public ConvolutionLayer<Dtype> {
  public:
   explicit MKLConvolutionLayer(const LayerParameter& param);
 
-  virtual inline const char* type() const { return "DnnConvolution"; }
   virtual ~MKLConvolutionLayer();
 
  protected:
@@ -106,6 +40,9 @@ class MKLConvolutionLayer : public ConvolutionLayer<Dtype> {
                           const vector<Blob<Dtype>*>& top);
   virtual void compute_output_shape();
 
+  void Reshape(const vector<Blob<Dtype>*>& bottom,
+          const vector<Blob<Dtype>*>& top);
+
  private:
   /* Fwd step */
   shared_ptr<MKLData<Dtype> > fwd_bottom_data, fwd_top_data, fwd_filter_data,
@@ -119,6 +56,7 @@ class MKLConvolutionLayer : public ConvolutionLayer<Dtype> {
 
   /* Bwd filter step */
   shared_ptr<MKLDiff<Dtype> > bwdf_top_diff, bwdf_filter_diff;
+  shared_ptr<MKLDiff<Dtype> > bwdf2fwd_filter_diff;
   shared_ptr<MKLData<Dtype> > bwdf_bottom_data;
   dnnPrimitive_t convolutionBwdFilter;
 
@@ -148,14 +86,21 @@ template <typename Dtype>
 class MKLLRNLayer : public Layer<Dtype> {
  public:
   explicit MKLLRNLayer(const LayerParameter& param)
-      : Layer<Dtype>(param), layout_usr_(NULL) {}
+      : Layer<Dtype>(param),
+        lrnFwd(static_cast<dnnPrimitive_t>(NULL)),
+        lrnBwd(static_cast<dnnPrimitive_t>(NULL)),
+        fwd_top_data    (new MKLData<Dtype>()),
+        fwd_bottom_data (new MKLData<Dtype>()),
+        bwd_top_diff    (new MKLDiff<Dtype>()),
+        bwd_bottom_diff (new MKLDiff<Dtype>()),
+        lrn_buffer_(static_cast<Dtype*>(NULL)) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual ~MKLLRNLayer();
 
-  virtual inline const char* type() const { return "DnnLRN"; }
+  virtual inline const char* type() const { return "LRN"; }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
@@ -193,10 +138,9 @@ class MKLLRNLayer : public Layer<Dtype> {
   // scale_ stores the intermediate summing results
  private:
   dnnPrimitive_t lrnFwd, lrnBwd;
-  shared_ptr<MKLData<Dtype> > fwd_top_data;
-  shared_ptr<MKLDiff<Dtype> > bwd_bottom_diff;
+  shared_ptr<MKLData<Dtype> > fwd_top_data, fwd_bottom_data;
+  shared_ptr<MKLDiff<Dtype> > bwd_top_diff, bwd_bottom_diff;
   Dtype *lrn_buffer_;
-  dnnLayout_t layout_usr_;
 };
 
 
@@ -217,7 +161,7 @@ class MKLPoolingLayer : public Layer<Dtype> {
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
                        const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "DnnPooling"; }
+  virtual inline const char* type() const { return "Pooling"; }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int MinTopBlobs() const { return 1; }
   // MAX POOL layers can output an extra top blob for the mask;
@@ -242,7 +186,7 @@ class MKLPoolingLayer : public Layer<Dtype> {
   int kernel_h_, kernel_w_;
   int stride_h_, stride_w_;
   int pad_h_, pad_w_;
-  int channels_;
+  int channels_, num_;
   int height_, width_;
   int pooled_height_, pooled_width_;
   bool global_pooling_;
@@ -270,14 +214,19 @@ class MKLReLULayer : public NeuronLayer<Dtype> {
    */
   explicit MKLReLULayer(const LayerParameter& param)
     : NeuronLayer<Dtype>(param),
+      fwd_top_data_    (new MKLData<Dtype>()),
       fwd_bottom_data_ (new MKLData<Dtype>()),
-      bwd_top_diff_    (new MKLDiff<Dtype>()) {}
+      bwd_top_diff_    (new MKLDiff<Dtype>()),
+      bwd_bottom_diff_ (new MKLDiff<Dtype>()),
+      reluFwd_(NULL),
+      reluBwd_(NULL) {}
+
   ~MKLReLULayer();
 
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                           const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "DnnReLU"; }
+  virtual inline const char* type() const { return "ReLU"; }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -293,24 +242,28 @@ class MKLReLULayer : public NeuronLayer<Dtype> {
                             const vector<Blob<Dtype>*>& bottom);
 
  private:
+  shared_ptr<MKLData<Dtype> > fwd_top_data_;
   shared_ptr<MKLData<Dtype> > fwd_bottom_data_;
   shared_ptr<MKLDiff<Dtype> > bwd_top_diff_;
+  shared_ptr<MKLDiff<Dtype> > bwd_bottom_diff_;
   dnnPrimitive_t reluFwd_, reluBwd_;
 };
 
-#ifdef USE_MKL2017_NEW_API
 template <typename Dtype>
 class MKLConcatLayer : public Layer<Dtype> {
  public:
   explicit MKLConcatLayer(const LayerParameter& param)
       : Layer<Dtype>(param),
-      fwd_top_data_    (new MKLData<Dtype>()),
-      bwd_top_diff_    (new MKLDiff<Dtype>()) {
+        concatFwd_(static_cast<dnnPrimitive_t>(NULL)),
+        concatBwd_(static_cast<dnnPrimitive_t>(NULL)),
+        fwd_top_data_    (new MKLData<Dtype>()),
+        bwd_top_diff_    (new MKLDiff<Dtype>()) {
       }
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                           const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
                        const vector<Blob<Dtype>*>& top);
+  virtual inline const char* type() const { return "Concat"; }
   ~MKLConcatLayer();
 
  protected:
@@ -347,18 +300,24 @@ class MKLBatchNormLayer : public Layer<Dtype> {
  public:
   explicit MKLBatchNormLayer(const LayerParameter& param)
       : Layer<Dtype>(param),
-        fwd_top_data    (new MKLData<Dtype>()),
-        bwd_bottom_diff (new MKLDiff<Dtype>()),
-        batchNormFwd(NULL), batchNormBwdData(NULL),
-        batchNormBwdScaleShift(NULL) {
-       }
+        fwd_top_data(new MKLData<Dtype>()),
+        fwd_bottom_data(new MKLData<Dtype>()),
+        bwd_top_diff(new MKLDiff<Dtype>()),
+        bwd_bottom_diff(new MKLDiff<Dtype>()),
+        batchNormFwd(static_cast<dnnPrimitive_t>(NULL)),
+        batchNormBwdData(static_cast<dnnPrimitive_t>(NULL)),
+        batchNormBwdScaleShift(static_cast<dnnPrimitive_t>(NULL)),
+        workspace_buffer_(static_cast<Dtype*>(NULL)),
+        scaleShift_buffer_(static_cast<Dtype*>(NULL)),
+        layout_usr_(static_cast<dnnLayout_t>(NULL)) {}
+
   virtual ~MKLBatchNormLayer();
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "MKLBatchNorm"; }
+  virtual inline const char* type() const { return "BatchNorm"; }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
@@ -383,6 +342,8 @@ class MKLBatchNormLayer : public Layer<Dtype> {
 
  private:
   shared_ptr<MKLData<Dtype> > fwd_top_data;
+  shared_ptr<MKLData<Dtype> > fwd_bottom_data;
+  shared_ptr<MKLDiff<Dtype> > bwd_top_diff;
   shared_ptr<MKLDiff<Dtype> > bwd_bottom_diff;
   dnnPrimitive_t batchNormFwd, batchNormBwdData, batchNormBwdScaleShift;
   Dtype *workspace_buffer_;
@@ -396,8 +357,8 @@ class MKLSplitLayer : public Layer<Dtype> {
   explicit MKLSplitLayer(const LayerParameter& param)
       : Layer<Dtype>(param),
         bwd_bottom_diff (new MKLDiff<Dtype>()),
-        sumPrimitive(NULL) {
-       }
+        sumPrimitive(static_cast<dnnPrimitive_t>(NULL)) {}
+
   virtual ~MKLSplitLayer();
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
@@ -432,8 +393,8 @@ class MKLEltwiseLayer : public Layer<Dtype> {
   explicit MKLEltwiseLayer(const LayerParameter& param)
       : Layer<Dtype>(param),
         fwd_top_data       (new MKLData<Dtype>()),
-        sumPrimitive(NULL) {
-       }
+        sumPrimitive(static_cast<dnnPrimitive_t>(NULL)) {}
+
   virtual ~MKLEltwiseLayer();
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
@@ -468,7 +429,6 @@ class MKLEltwiseLayer : public Layer<Dtype> {
 
   bool stable_prod_grad_;
 };
-#endif  // #ifdef USE_MKL2017_NEW_API
 
 }  // namespace caffe
 #endif  // #ifndef CAFFE_MKL2017_LAYERS_HPP_

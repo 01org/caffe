@@ -6,6 +6,10 @@
 #include "caffe/util/im2col.hpp"
 #include "caffe/util/math_functions.hpp"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace caffe {
 
 template <typename Dtype>
@@ -36,7 +40,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK(num_kernel_dims == 1 || num_kernel_dims == num_spatial_axes_)
         << "kernel_size must be specified once, or once per spatial dimension "
         << "(kernel_size specified " << num_kernel_dims << " times; "
-        << num_spatial_axes_ << " spatial dims);";
+        << num_spatial_axes_ << " spatial dims).";
       for (int i = 0; i < num_spatial_axes_; ++i) {
         kernel_shape_data[i] =
             conv_param.kernel_size((num_kernel_dims == 1) ? 0 : i);
@@ -61,7 +65,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
           num_stride_dims == num_spatial_axes_)
         << "stride must be specified once, or once per spatial dimension "
         << "(stride specified " << num_stride_dims << " times; "
-        << num_spatial_axes_ << " spatial dims);";
+        << num_spatial_axes_ << " spatial dims).";
     const int kDefaultStride = 1;
     for (int i = 0; i < num_spatial_axes_; ++i) {
       stride_data[i] = (num_stride_dims == 0) ? kDefaultStride :
@@ -85,12 +89,26 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
           num_pad_dims == num_spatial_axes_)
         << "pad must be specified once, or once per spatial dimension "
         << "(pad specified " << num_pad_dims << " times; "
-        << num_spatial_axes_ << " spatial dims);";
+        << num_spatial_axes_ << " spatial dims).";
     const int kDefaultPad = 0;
     for (int i = 0; i < num_spatial_axes_; ++i) {
       pad_data[i] = (num_pad_dims == 0) ? kDefaultPad :
           conv_param.pad((num_pad_dims == 1) ? 0 : i);
     }
+  }
+  // Setup dilation dimensions (dilation_).
+  dilation_.Reshape(spatial_dim_blob_shape);
+  int* dilation_data = dilation_.mutable_cpu_data();
+  const int num_dilation_dims = conv_param.dilation_size();
+  CHECK(num_dilation_dims == 0 || num_dilation_dims == 1 ||
+        num_dilation_dims == num_spatial_axes_)
+      << "dilation must be specified once, or once per spatial dimension "
+      << "(dilation specified " << num_dilation_dims << " times; "
+      << num_spatial_axes_ << " spatial dims).";
+  const int kDefaultDilation = 1;
+  for (int i = 0; i < num_spatial_axes_; ++i) {
+    dilation_data[i] = (num_dilation_dims == 0) ? kDefaultDilation :
+                       conv_param.dilation((num_dilation_dims == 1) ? 0 : i);
   }
   // Special case: im2col is the identity for 1x1 convolution with stride 1
   // and no padding, so flag for skipping the buffer and transformation.
@@ -237,18 +255,49 @@ void BaseConvolutionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     caffe_set(bias_multiplier_.count(), Dtype(1),
         bias_multiplier_.mutable_cpu_data());
   }
+
+  // ---- openmp ------------------------------------------
+  num_of_threads_ = 1;
+#ifdef _OPENMP
+  num_of_threads_ = omp_get_max_threads() < bottom[0]->shape(0) ?
+                    omp_get_max_threads() : bottom[0]->shape(0);
+  if (num_of_threads_ < 1) {
+     LOG(WARNING) << "Base Conv layer: omp_get_max_threads() ="
+                  << num_of_threads_;
+     num_of_threads_ = 1;
+  }
+#endif
+
+  int col_buffer_mt_size = num_of_threads_ * col_buffer_.count();
+  int weight_diff_mt_size = num_of_threads_ * this->blobs_[0]->count();
+
+  col_buffer_mt_.resize(col_buffer_mt_size);
+  weight_diff_mt_.resize(weight_diff_mt_size);
 }
 
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::forward_cpu_gemm(const Dtype* input,
     const Dtype* weights, Dtype* output, bool skip_im2col) {
-  const Dtype* col_buff = input;
-  if (!is_1x1_) {
-    if (!skip_im2col) {
-      conv_im2col_cpu(input, col_buffer_.mutable_cpu_data());
-    }
-    col_buff = col_buffer_.cpu_data();
+
+  int tid = 0;
+#ifdef _OPENMP
+  tid = omp_get_thread_num();
+  if (tid >= num_of_threads_) {
+    LOG(FATAL) << "ConvLayer::Forward_cpu: omp_thread_num() =" << tid
+               << " > OMP_num_THREADS = " << num_of_threads_;
   }
+  tid = tid % num_of_threads_;  //  just to be sure
+#endif
+  int col_data_buffer_size = col_buffer_mt_.size()/num_of_threads_;
+
+  Dtype* col_buff = const_cast<Dtype*>(input);
+  if (!is_1x1_) {
+    col_buff = & col_buffer_mt_[ tid* col_data_buffer_size];
+    if (!skip_im2col) {
+      conv_im2col_cpu(input, col_buff);
+    }
+  }
+
   for (int g = 0; g < group_; ++g) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
         group_, conv_out_spatial_dim_, kernel_dim_,
@@ -268,7 +317,19 @@ void BaseConvolutionLayer<Dtype>::forward_cpu_bias(Dtype* output,
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::backward_cpu_gemm(const Dtype* output,
     const Dtype* weights, Dtype* input) {
-  Dtype* col_buff = col_buffer_.mutable_cpu_data();
+
+  int tid = 0;
+#ifdef _OPENMP
+  tid = omp_get_thread_num();
+  if (tid >= num_of_threads_) {
+    LOG(FATAL) << "ConvLayer::backward_cpu_gemm: omp_thread_num() =" << tid
+               << " > OMP_num_THREADS = " << num_of_threads_;
+  }
+  tid = tid % num_of_threads_;  //  just to be sure
+#endif
+  int col_data_buffer_size = col_buffer_mt_.size()/num_of_threads_;
+  Dtype* col_buff = & col_buffer_mt_[ tid* col_data_buffer_size];
+
   if (is_1x1_) {
     col_buff = input;
   }
@@ -283,21 +344,73 @@ void BaseConvolutionLayer<Dtype>::backward_cpu_gemm(const Dtype* output,
   }
 }
 
+
+template <typename Dtype>
+void BaseConvolutionLayer<Dtype>::clear_weight_mt(void) {
+  unsigned int weight_diff_size = weight_diff_mt_.size() / num_of_threads_;
+  caffe_memset(num_of_threads_*weight_diff_size*sizeof(Dtype),
+               0.,
+               &weight_diff_mt_[0]);
+}
+
+
+template <typename Dtype>
+void BaseConvolutionLayer<Dtype>::sum_weight_mt(Dtype* weight_diff) {
+  unsigned int weight_diff_size =  weight_diff_mt_.size() / num_of_threads_;
+  unsigned int col_per_thread = weight_diff_size/num_of_threads_;
+  int tid = 0;
+#ifdef _OPENMP
+    if (omp_in_parallel()) {
+        tid = omp_get_thread_num();
+    }
+#endif
+    for (unsigned int j = 0; j < col_per_thread; ++j) {
+      for (unsigned int t = 0; t < num_of_threads_ ; ++t) {
+          weight_diff[tid*col_per_thread + j] +=
+            weight_diff_mt_[t*weight_diff_size + tid*col_per_thread + j];
+      }
+    }
+
+    unsigned int j = col_per_thread*num_of_threads_ + tid;
+    if (j < weight_diff_size) {
+      for (unsigned int t = 0; t < num_of_threads_ ; ++t) {
+        weight_diff[j] += weight_diff_mt_[t * weight_diff_size + j];
+      }
+    }
+}
+
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::weight_cpu_gemm(const Dtype* input,
     const Dtype* output, Dtype* weights) {
-  const Dtype* col_buff = input;
+  int tid = 0;
+#ifdef _OPENMP
+  tid = omp_get_thread_num();
+  if (tid >= num_of_threads_) {
+    LOG(FATAL) << "ConvLayer::weights_cpu_gemm: omp_thread_num() =" << tid
+               << " > OMP_num_THREADS = " << num_of_threads_;
+  }
+  tid = tid % num_of_threads_;  //  just to be sure
+  Dtype* weight_diff_data =
+    & weight_diff_mt_[tid * (weight_diff_mt_.size()/num_of_threads_)];
+#else
+  Dtype* weight_diff_data = weights;
+#endif
+  Dtype* col_buff = const_cast<Dtype*>(input);
+
   if (!is_1x1_) {
-    conv_im2col_cpu(input, col_buffer_.mutable_cpu_data());
-    col_buff = col_buffer_.cpu_data();
+    int col_data_buffer_size = col_buffer_mt_.size()/num_of_threads_;
+    col_buff = & col_buffer_mt_[ tid* col_data_buffer_size];
+    conv_im2col_cpu(input, col_buff);
   }
   for (int g = 0; g < group_; ++g) {
     caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
         kernel_dim_, conv_out_spatial_dim_,
         (Dtype)1., output + output_offset_ * g, col_buff + col_offset_ * g,
-        (Dtype)1., weights + weight_offset_ * g);
+        (Dtype)1., weight_diff_data + weight_offset_ * g);
   }
 }
+
+
 
 template <typename Dtype>
 void BaseConvolutionLayer<Dtype>::backward_cpu_bias(Dtype* bias,

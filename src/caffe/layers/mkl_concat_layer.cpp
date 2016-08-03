@@ -1,4 +1,4 @@
-#if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#if defined(MKL2017_SUPPORTED)
 #include <vector>
 
 #include "caffe/layer.hpp"
@@ -7,14 +7,13 @@
 namespace caffe {
 
 template <typename Dtype> MKLConcatLayer<Dtype>::~MKLConcatLayer() {
-  if (concatFwd_) dnnDelete<Dtype>(concatFwd_);
-  if (concatBwd_) dnnDelete<Dtype>(concatBwd_);
+  dnnDelete<Dtype>(concatFwd_);
+  dnnDelete<Dtype>(concatBwd_);
 }
 
 template <typename Dtype>
 void MKLConcatLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
-  dnnError_t e;
   size_t dim_src = bottom[0]->shape().size();
   size_t dim_dst = dim_src;
 
@@ -45,12 +44,8 @@ void MKLConcatLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
     split_channels_[i] = bottom[i]->channels();
     channels_ += split_channels_[i];
-    e = dnnLayoutCreate<Dtype>(&(fwd_bottom_data_[i]->layout_usr),
-      dim_src, sizes_src, strides_src);
-    CHECK_EQ(e, E_SUCCESS);
-    e = dnnLayoutCreate<Dtype>(&(bwd_bottom_diff_[i]->layout_usr),
-      dim_src, sizes_src, strides_src);
-    CHECK_EQ(e, E_SUCCESS);
+    fwd_bottom_data_[i]->create_user_layout(dim_src, sizes_src, strides_src);
+    bwd_bottom_diff_[i]->create_user_layout(dim_src, sizes_src, strides_src);
   }
 
   // XXX: almost the same computations as above for src
@@ -62,12 +57,9 @@ void MKLConcatLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       sizes_dst[d] = bottom[0]->shape()[dim_dst - 1 - d];
     strides_dst[d] = (d == 0) ? 1 : strides_dst[d - 1] * sizes_dst[d - 1];
   }
-  e = dnnLayoutCreate<Dtype>(&bwd_top_diff_->layout_usr,
-    dim_dst, sizes_dst, strides_dst);
-  CHECK_EQ(e, E_SUCCESS);
-  e = dnnLayoutCreate<Dtype>(&fwd_top_data_->layout_usr,
-    dim_dst, sizes_dst, strides_dst);
-  CHECK_EQ(e, E_SUCCESS);
+  bwd_top_diff_->create_user_layout(dim_dst, sizes_dst, strides_dst);
+  fwd_top_data_->create_user_layout(dim_dst, sizes_dst, strides_dst);
+
   concatFwd_ = NULL;
   concatBwd_ = NULL;
 }
@@ -123,15 +115,8 @@ void MKLConcatLayer<Dtype>::Forward_cpu(const vector <Blob<Dtype>*>& bottom,
     e = dnnConcatCreate<Dtype>(&concatFwd_, NULL, num_concats_, layouts);
     CHECK_EQ(e, E_SUCCESS);
 
-    e = dnnLayoutCreateFromPrimitive<Dtype>(&fwd_top_data_->layout_int,
-      concatFwd_, dnnResourceDst);
-    CHECK_EQ(e, E_SUCCESS);
-    fwd_top_data_->create_conversions();
-
-    e = dnnLayoutCreateFromPrimitive<Dtype>(&bwd_top_diff_->layout_int,
-      concatFwd_, dnnResourceDst);
-    CHECK_EQ(e, E_SUCCESS);
-    bwd_top_diff_->create_conversions();
+    fwd_top_data_->create_internal_layout(concatFwd_, dnnResourceDst);
+    bwd_top_diff_->create_internal_layout(concatFwd_, dnnResourceDst);
 
     e = dnnSplitCreate<Dtype>(&concatBwd_, NULL, num_concats_,
       bwd_top_diff_->layout_int, split_channels_);
@@ -140,17 +125,10 @@ void MKLConcatLayer<Dtype>::Forward_cpu(const vector <Blob<Dtype>*>& bottom,
     for (size_t n = 0; n < num_concats_; ++n) {
       if (isBottomDataFilled[n]) continue;
 
-      e = dnnLayoutCreateFromPrimitive<Dtype>(
-        &(fwd_bottom_data_[n]->layout_int), concatFwd_,
+      fwd_bottom_data_[n]->create_internal_layout(concatFwd_,
           (dnnResourceType_t)(dnnResourceMultipleSrc + n));
-      CHECK_EQ(e, E_SUCCESS);
-      fwd_bottom_data_[n]->create_conversions();
-
-      e = dnnLayoutCreateFromPrimitive<Dtype>(
-        &(bwd_bottom_diff_[n]->layout_int), concatBwd_,
+      bwd_bottom_diff_[n]->create_internal_layout(concatBwd_,
           (dnnResourceType_t)(dnnResourceMultipleDst + n));
-      CHECK_EQ(e, E_SUCCESS);
-      bwd_bottom_diff_[n]->create_conversions();
     }
   }
 
@@ -164,9 +142,9 @@ void MKLConcatLayer<Dtype>::Forward_cpu(const vector <Blob<Dtype>*>& bottom,
   }
 
   if (fwd_top_data_->convert_from_int) {
-    top[0]->set_prv_data(fwd_top_data_->internal_ptr, fwd_top_data_, false);
+    top[0]->set_prv_data(fwd_top_data_->prv_ptr(), fwd_top_data_, false);
     concat_res[dnnResourceDst] =
-      reinterpret_cast<void*>(fwd_top_data_->internal_ptr);
+      reinterpret_cast<void*>(fwd_top_data_->prv_ptr());
   } else {
     concat_res[dnnResourceDst] =
       reinterpret_cast<void*>(top[0]->mutable_cpu_data());
@@ -195,15 +173,13 @@ void MKLConcatLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
 
   for (size_t i = 0; i < num_concats_; ++i) {
     if (bwd_bottom_diff_[i]->convert_from_int) {
-      bottom[i]->set_prv_diff(bwd_bottom_diff_[i]->internal_ptr,
+      bottom[i]->set_prv_diff(bwd_bottom_diff_[i]->prv_ptr(),
         bwd_bottom_diff_[i], false);
       concat_res[dnnResourceMultipleDst + i] =
-        reinterpret_cast<void*>(bwd_bottom_diff_[i]->internal_ptr);
+        reinterpret_cast<void*>(bwd_bottom_diff_[i]->prv_ptr());
     } else {
       concat_res[dnnResourceMultipleDst + i] = bottom[i]->mutable_cpu_diff();
     }
-    caffe_set(bottom[i]->count(), Dtype(0),
-      reinterpret_cast<Dtype*>(concat_res[dnnResourceMultipleDst + i]));
   }
 
   e = dnnExecute<Dtype>(concatBwd_, concat_res);
@@ -224,4 +200,4 @@ void MKLConcatLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 
 INSTANTIATE_CLASS(MKLConcatLayer);
 }  // namespace caffe
-#endif  // #if defined(MKL2017_SUPPORTED) && defined(USE_MKL2017_NEW_API)
+#endif  // #if defined(MKL2017_SUPPORTED)

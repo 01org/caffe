@@ -18,11 +18,12 @@ lr_policy: "step"
 gamma: 1
 stepsize: 5000
 # Display every 200 iterations
-display: 100
+display: 1
 # The maximum number of iterations
 max_iter: 60000
 # snapshot intermediate results
 snapshot: 10000
 snapshot_prefix: "examples/cifar10_full_sigmoid"
 # solver mode: CPU or GPU
-solver_mode: GPU
+solver_mode: CPU
+random_seed: 2
