@@ -11,7 +11,25 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <sys/time.h>
+
+#ifdef WINDOWS_BUILD
+	#include <time.h>
+	#include "windows.h"
+	void gettimeofday(struct timeval * result, void*unused)
+	{
+		FILETIME filetime;
+		int64_t t;
+		if (result != NULL)
+			GetSystemTimeAsFileTime(&filetime);
+
+		t = (int64_t)(filetime.dwLowDateTime) + (int64_t)(filetime.dwHighDateTime)*(int64_t)0x100000000;
+
+		result->tv_sec = (long)((t - (int64_t)0x19db1ded53e8000) / 10000000);
+		result->tv_usec = (long)((t % 10000000) / 10);
+	}
+#else
+	#include <sys/time.h>
+#endif
 
 #ifdef USE_OPENCV
 using namespace caffe;  // NOLINT(build/namespaces)

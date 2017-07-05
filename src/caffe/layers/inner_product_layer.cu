@@ -8,6 +8,8 @@
 #include "caffe/util/benchmark.hpp"
 #endif
 
+typedef unsigned int uint;
+
 namespace caffe {
 
 struct gemm_callback_arg {
