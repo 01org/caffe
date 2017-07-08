@@ -1,6 +1,7 @@
 #ifndef CAFFE_UTIL_FP16_H_
 #define CAFFE_UTIL_FP16_H_
 
+#include <boost/shared_ptr.hpp>
 #include "3rdparty/half/half.hpp"
 using half_float::half;
 
@@ -12,14 +13,12 @@ using half_float::half;
 	#define HALF_MIN	0x1.0p-14f
 #endif
 
-#include <boost/shared_ptr.hpp>
-
 inline float fixup_arg_type(float v) {
   return v;
 }
 
 inline float fixup_arg_type(half_float::half v) {
-  return float(v);
+  return static_cast<float>(v);
 }
 
 inline double fixup_arg_type(double v) {
@@ -51,7 +50,7 @@ inline unsigned long fixup_arg_type(unsigned long v) {
 }
 
 inline float fixup_arg_type(const half_float::detail::expr& expr) {
-  return float(expr);
+  return static_cast<float>(expr);
 }
 
 inline const void * fixup_arg_type(const boost::shared_ptr<void>& share_ptr) {
