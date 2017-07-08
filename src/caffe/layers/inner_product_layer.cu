@@ -10,6 +10,8 @@
 #include "caffe/util/benchmark.hpp"
 #include "caffe/util/math_functions.hpp"
 
+typedef unsigned int uint;
+
 namespace caffe {
 
 struct gemm_callback_arg {

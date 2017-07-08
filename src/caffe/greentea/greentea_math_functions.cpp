@@ -47,6 +47,7 @@
 #include "viennacl/scalar.hpp"
 #include "viennacl/vector.hpp"
 
+typedef unsigned int uint;
 
 // ViennaCL 1.5.1 compability fix
 #ifndef VIENNACL_MINOR_VERSION

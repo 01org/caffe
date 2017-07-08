@@ -5,14 +5,14 @@
 if DEFINED APPVEYOR (
     echo Setting Appveyor defaults
     if NOT DEFINED MSVC_VERSION set MSVC_VERSION=14
-    if NOT DEFINED WITH_NINJA set WITH_NINJA=1
+    if NOT DEFINED WITH_NINJA set WITH_NINJA=0
     if NOT DEFINED CPU_ONLY set CPU_ONLY=1
     if NOT DEFINED CMAKE_CONFIG set CMAKE_CONFIG=Release
     if NOT DEFINED USE_NCCL set USE_NCCL=0
     if NOT DEFINED CMAKE_BUILD_SHARED_LIBS set CMAKE_BUILD_SHARED_LIBS=0
     if NOT DEFINED PYTHON_VERSION set PYTHON_VERSION=2
-    if NOT DEFINED BUILD_PYTHON set BUILD_PYTHON=1
-    if NOT DEFINED BUILD_PYTHON_LAYER set BUILD_PYTHON_LAYER=1
+    if NOT DEFINED BUILD_PYTHON set BUILD_PYTHON=0
+    if NOT DEFINED BUILD_PYTHON_LAYER set BUILD_PYTHON_LAYER=0
     if NOT DEFINED BUILD_MATLAB set BUILD_MATLAB=0
     if NOT DEFINED PYTHON_EXE set PYTHON_EXE=python
     if NOT DEFINED RUN_TESTS set RUN_TESTS=1
@@ -69,7 +69,7 @@ if DEFINED APPVEYOR (
     :: Change MSVC_VERSION to 12 to use VS 2013
     if NOT DEFINED MSVC_VERSION set MSVC_VERSION=14
     :: Change to 1 to use Ninja generator (builds much faster)
-    if NOT DEFINED WITH_NINJA set WITH_NINJA=1
+    if NOT DEFINED WITH_NINJA set WITH_NINJA=0
     :: Change to 1 to build caffe without CUDA support
     if NOT DEFINED CPU_ONLY set CPU_ONLY=0
     :: Change to Debug to build Debug. This is only relevant for the Ninja generator the Visual Studio generator will generate both Debug and Release configs
@@ -81,8 +81,8 @@ if DEFINED APPVEYOR (
     :: Change to 3 if using python 3.5 (only 2.7 and 3.5 are supported)
     if NOT DEFINED PYTHON_VERSION set PYTHON_VERSION=2
     :: Change these options for your needs.
-    if NOT DEFINED BUILD_PYTHON set BUILD_PYTHON=1
-    if NOT DEFINED BUILD_PYTHON_LAYER set BUILD_PYTHON_LAYER=1
+    if NOT DEFINED BUILD_PYTHON set BUILD_PYTHON=0
+    if NOT DEFINED BUILD_PYTHON_LAYER set BUILD_PYTHON_LAYER=0
     if NOT DEFINED BUILD_MATLAB set BUILD_MATLAB=0
     :: If python is on your path leave this alone
     if NOT DEFINED PYTHON_EXE set PYTHON_EXE=python
@@ -106,7 +106,7 @@ if DEFINED APPVEYOR (
     :: Use 64 bit indexing for very large memory blob support (above 2G)
     if NOT DEFINED USE_INDEX64 set USE_INDEX64=0
     :: Use Intel spatial kernels acceleration for forward convolution on Intel iGPUs
-    if NOT DEFINED USE_INTEL_SPATIAL set USE_INTEL_SPATIAL=0
+    if NOT DEFINED USE_INTEL_SPATIAL set USE_INTEL_SPATIAL=1
 )
 
 :: Set the appropriate CMake generator
@@ -174,7 +174,7 @@ call "%batch_file%" amd64
 :: Add -DCUDNN_ROOT=C:/Projects/caffe/cudnn-8.0-windows10-x64-v5.1/cuda ^
 :: below to use cuDNN
 cmake -G"!CMAKE_GENERATOR!" ^
-      -DBLAS=Open ^
+      -DBLAS=MKL ^
       -DCMAKE_BUILD_TYPE:STRING=%CMAKE_CONFIG% ^
       -DBUILD_SHARED_LIBS:BOOL=%CMAKE_BUILD_SHARED_LIBS% ^
       -DBUILD_python:BOOL=%BUILD_PYTHON% ^
@@ -191,6 +191,8 @@ cmake -G"!CMAKE_GENERATOR!" ^
       -DCOPY_PREREQUISITES:BOOL=1 ^
       -DINSTALL_PREREQUISITES:BOOL=1 ^
       -DUSE_NCCL:BOOL=!USE_NCCL! ^
+      -DMKL_USE_SINGLE_DYNAMIC_LIBRARY=1 ^
+      -DWINDOWS_BUILD=1 ^
       "%~dp0\.."
 
 if ERRORLEVEL 1 (
