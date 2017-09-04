@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>clCaffe</id>
+    <version>1.0.0</version>
+    <authors>clCaffe</authors>
+    <owners>clCaffe</owners>
+    <licenseUrl>https://github.com/BVLC/caffe/blob/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/01org/caffe/tree/inference-optimize</projectUrl>
+    <iconUrl>https://github.com/01org/caffe/blob/inference-optimize/examples/images/cat_gray.jpg</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>clCaffe is a caffe gpu optimization version for intel gpu</description>
+    <releaseNotes>initial release</releaseNotes>
+    <copyright>Copyright 2017</copyright>
+    <tags>only for x64 Release win10 skylake or later, and only for reference</tags>
+  </metadata>
+  <files>
+    <file src=".\include\**\*.*" target="include" />
+    <file src=".\lib\$PlatformToolset$\$Platform$\Release\*.*" target="lib\Release" />
+		<file src=".\build\native\clCaffe.props" target="build\native" />
+  </files>	
+</package>
