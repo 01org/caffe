@@ -39,7 +39,6 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
   CHECK_GE(skip_frames_, 0);
   int t_w = this->transform_param_.resize_param().width();
   int t_h = this->transform_param_.resize_param().height();
-  //printf("t_w[%d] t_h[%d]\n", t_w, t_h);
   // Read an image, and use it to initialize the top blob.
   cv::Mat cv_img;
   if (video_type_ == VideoDataParameter_VideoType_WEBCAM) {
@@ -56,18 +55,15 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
       LOG(FATAL) << "Failed to open video: " << video_file;
     }
     total_frames_ = cap_.get(CV_CAP_PROP_FRAME_COUNT);
-
     processed_frames_ = 0;
     // Read image to infer shape.
     cap_ >> cv_img;
-
     // Set index back to the first frame.
     cap_.set(CV_CAP_PROP_POS_FRAMES, 0);
 #else
     if (!qsv_cap_.open(video_file.c_str())) {
     	LOG(FATAL) << "Failed to open video: " << video_file;
     }
-    qsv_cap_.setResize(t_w, t_h);
     total_frames_ = qsv_cap_.get_total_frames();
     processed_frames_ = 0;
     qsv_cap_.getVideoFrame(cv_img);
