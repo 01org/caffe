@@ -37,8 +37,6 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
   video_type_ = video_data_param.video_type();
   skip_frames_ = video_data_param.skip_frames();
   CHECK_GE(skip_frames_, 0);
-  int t_w = this->transform_param_.resize_param().width();
-  int t_h = this->transform_param_.resize_param().height();
   // Read an image, and use it to initialize the top blob.
   cv::Mat cv_img;
   if (video_type_ == VideoDataParameter_VideoType_WEBCAM) {
