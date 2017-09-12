@@ -65,7 +65,7 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
     return 1;
   }
   virtual inline bool EqualNumBottomTopBlobs() const {
-    return IsFusedWithEltwiseReLU() ? false : true;
+    return (IsFusedWithEltwise() || IsFusedWithPReLU()) ? false : true;
   }
 
 #ifdef USE_GREENTEA
@@ -109,9 +109,10 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
     ConvType kernelType;
 
     kernelConfig() {
+      kernelType = ConvType::BASIC;
     }
     kernelConfig(string name, size_t* global_size, size_t* local_size,
-    int_tp* workItem,
+                 int_tp* workItem,
                  bool tune, bool swizzle, bool null_local,
                  ConvType type = ConvType::BASIC) {
       kernelName = name;
@@ -192,6 +193,8 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
                                      size_t* localSizes, size_t* globalSizes);
   void load_cached_kernels(const vector<Blob<Dtype>*>& bottom,
                            const vector<Blob<Dtype>*>& top);
+  bool need_swizzle(const kernelConfig &prev,
+                    const kernelConfig &cur);
   void SetUp(const vector<Blob<Dtype>*>& bottom,
              const vector<Blob<Dtype>*>& top, caffe::Backend backend);
   void setBufferKernelArg(const vector<Blob<Dtype>*>& bottom,
@@ -222,12 +225,28 @@ class ConvolutionLayerSpatial : public BaseConvolutionLayer<Dtype> {
             == ConvolutionParameter_FuseType_FUSED_CONV_ELTWISE_RELU);
   }
 
+  bool IsFusedWithEltwisePReLU() const {
+    return (this->layer_param_.convolution_param().fuse_type()
+            == ConvolutionParameter_FuseType_FUSED_CONV_ELTWISE_PRELU);
+  }
+
   bool IsFusedWithReLU() const {
     return IsFusedWithEltwiseReLU() ||
            (this->layer_param_.convolution_param().fuse_type()
             == ConvolutionParameter_FuseType_FUSED_CONV_RELU);
   }
 
+  bool IsFusedWithPReLU() const {
+    return IsFusedWithEltwisePReLU() ||
+           (this->layer_param_.convolution_param().fuse_type()
+            == ConvolutionParameter_FuseType_FUSED_CONV_PRELU);
+  }
+
+  bool IsFusedWithEltwise() const {
+    return IsFusedWithEltwiseReLU() || IsFusedWithEltwisePReLU() ||
+           (this->layer_param_.convolution_param().fuse_type()
+            == ConvolutionParameter_FuseType_FUSED_CONV_ELTWISE);
+  }
 #endif
 #endif
 

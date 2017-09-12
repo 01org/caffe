@@ -75,7 +75,7 @@ void ConvolutionLayerSpatial<Dtype>::LayerSetUp(
 
   dwconv_ = (this->num_output_ == this->channels_ && this->channels_ == this->group_);
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     CHECK_EQ(
       this->layer_param().convolution_param().eltwise_param().coeff_size(),
       0);
@@ -89,6 +89,29 @@ void ConvolutionLayerSpatial<Dtype>::LayerSetUp(
       this->layer_param_.convolution_param().relu_param().negative_slope();
   else
     negative_slope_ = 0;
+
+  if (IsFusedWithPReLU()) {
+    if (this->layer_param_.convolution_param().prelu_param().channel_shared()) {
+      ConvolutionParameter *conv_fuse_param = this->layer_param_.mutable_convolution_param();
+      const Dtype* slope_data = this->bias_term_ ?
+                                this->blobs_[2]->cpu_data() : this->blobs_[1]->cpu_data();
+      switch (conv_fuse_param->fuse_type()) {
+        case ConvolutionParameter_FuseType_FUSED_CONV_PRELU:
+          conv_fuse_param->set_fuse_type(ConvolutionParameter_FuseType_FUSED_CONV_RELU);
+          break;
+        case ConvolutionParameter_FuseType_FUSED_CONV_ELTWISE_PRELU:
+          conv_fuse_param->set_fuse_type(ConvolutionParameter_FuseType_FUSED_CONV_ELTWISE_RELU);
+          break;
+        default:
+          std::cerr << "Unsupported fuse type: " << conv_fuse_param->fuse_type() << std::endl;
+      }
+      conv_fuse_param->mutable_relu_param()->set_negative_slope(slope_data[0]);
+    } else {
+      vector<int_tp> slope_shape(1, this->num_output_);
+      shared_ptr<Blob<Dtype> > slope_blob(new Blob<Dtype>(slope_shape, this->device_));
+      this->blobs_.push_back(slope_blob);
+    }
+  }
 
   if (std::getenv("CLCAFFE_CACHE_PATH"))
     cache_path_ << std::getenv("CLCAFFE_CACHE_PATH");
@@ -117,7 +140,7 @@ void ConvolutionLayerSpatial<Dtype>::LayerSetUp(
 template<typename Dtype>
 void ConvolutionLayerSpatial<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
                                              const vector<Blob<Dtype>*>& top) {
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     const vector<Blob<Dtype>*> bottom_image(bottom.begin(), bottom.end() - 1);
     BaseConvolutionLayer<Dtype>::Reshape(bottom_image, top);
   } else {
@@ -166,7 +189,7 @@ template<typename Dtype>
 void ConvolutionLayerSpatial<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  CHECK_EQ(IsFusedWithEltwiseReLU() == false && IsFusedWithReLU() == false,
+  CHECK_EQ(IsFusedWithEltwise() == false && IsFusedWithReLU() == false,
            true);
   for (int_tp i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->cpu_data();
@@ -556,10 +579,11 @@ bool ConvolutionLayerSpatial<Dtype>::create_basic_kernel(
                 << this->bias_term_ << " -D OUTPUT_Z=" << M_
                 << " -D XPAR=" << workItemOutput[0] << " -D YPAR="
                 << workItemOutput[1] << " -D ZPAR=" << workItemOutput[2]
-                << " -D " << kernelDef.c_str() << " -D CFMultiNoPadding="
-                << kernel_name_;
+                << " -D " << kernelDef.c_str()
+                << " -DTOTAL_OUTPUT_DEPTH=" << this->num_output_
+                << " -D CFMultiNoPadding=" << kernel_name_;
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     optionsString << " -DFUSED_CONV_ELTWISE=1";
   }
 
@@ -651,6 +675,13 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
   viennacl::ocl::program & program = ctx.get_program(config->kernelName);
   viennacl::ocl::kernel &kernel = program.get_kernel(config->kernelName);
   cl_int err = CL_SUCCESS;
+
+  const Dtype* slope_data = NULL;
+
+  if (IsFusedWithPReLU())
+    slope_data = this->bias_term_ ?
+                 this->blobs_[2]->gpu_data() :
+                 this->blobs_[1]->gpu_data();
   if (config->kernelType == ConvType::IDLF) {
     swizzleWeights(bottom, top, config->workItem_output[2], false);
     size_t total_bottom_size = this->bottom_dim_ * numImages;
@@ -666,10 +697,12 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
       int_tp kernel_offset = kernel_h_ * kernel_w_
                              * (this->channels_ / this->group_) * M_ * g;
       cl_uint argIdx = 0;
-      if (IsFusedWithEltwiseReLU())
+      if (IsFusedWithEltwise())
         kernel.arg(argIdx++, WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
       if (IsFusedWithReLU())
         kernel.arg(argIdx++, fixup_arg_type(negative_slope_));
+      if (IsFusedWithPReLU())
+        kernel.arg(argIdx++, WrapHandle((cl_mem) slope_data, &ctx));
 
       try {
         setBufferKernelArg(bottom, top, &kernel, argIdx++, &ctx,
@@ -748,10 +781,12 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
     oclk_data_transform.arg(6, (int)num_w_tiles);
 
     cl_uint argIdx = 0;
-    if (IsFusedWithEltwiseReLU())
+    if (IsFusedWithEltwise())
       kernel.arg(argIdx++, WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
     if (IsFusedWithReLU())
       kernel.arg(argIdx++, fixup_arg_type(negative_slope_));
+    if (IsFusedWithPReLU())
+      kernel.arg(argIdx++, WrapHandle((cl_mem) slope_data, &ctx));
     kernel.arg(argIdx++, WrapHandle((cl_mem)this->input_transform_blob_.gpu_data(), &ctx));
     kernel.arg(argIdx++, WrapHandle(winograd_weights_image_, &ctx));
     if (this->bias_term_)
@@ -807,10 +842,12 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
       int_tp output_image_offset = output_w_ * output_h_ * M_ * g;
 
       cl_uint argIdx = 0;
-      if (IsFusedWithEltwiseReLU())
+      if (IsFusedWithEltwise())
         kernel.arg(argIdx++, WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
       if (IsFusedWithReLU())
         kernel.arg(argIdx++, fixup_arg_type(negative_slope_));
+      if (IsFusedWithPReLU())
+        kernel.arg(argIdx++, WrapHandle((cl_mem) slope_data, &ctx));
 
       int_tp kernel_offset = kernel_h_ * kernel_w_
                              * (this->channels_ / this->group_) * M_ * g;
@@ -893,12 +930,13 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
   } else if (config->kernelType == ConvType::DWCONV) {
 
       cl_uint argIdx = 0;
-      if (IsFusedWithEltwiseReLU())
+      if (IsFusedWithEltwise())
         kernel.arg(argIdx++,
-                     WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
+                   WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
       if (IsFusedWithReLU())
         kernel.arg(argIdx++, fixup_arg_type(negative_slope_));
-
+      if (IsFusedWithPReLU())
+        kernel.arg(argIdx++, WrapHandle((cl_mem) slope_data, &ctx));
       kernel.arg(argIdx++, WrapHandle((cl_mem) bottom_data, &ctx));
       kernel.arg(argIdx++, WrapHandle((cl_mem) weight, &ctx));
       if (this->bias_term_)
@@ -914,10 +952,10 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
       globalSize[1] = output_h_;
       globalSize[2] = this->num_output_*this->num_;
       err = clEnqueueNDRangeKernel(ctx.get_queue().handle().get(),
-                                       kernel.handle().get(), 3,
-                                       NULL,
-                                       globalSize, NULL, 0, NULL,
-                                       NULL);
+                                   kernel.handle().get(), 3,
+                                   NULL,
+                                   globalSize, NULL, 0, NULL,
+                                   NULL);
 
       if (err != CL_SUCCESS)
         return err;
@@ -932,11 +970,13 @@ cl_int ConvolutionLayerSpatial<Dtype>::convolve(
             + output_w_ * output_h_ * M_ * g;
 
         cl_uint argIdx = 0;
-        if (IsFusedWithEltwiseReLU())
+        if (IsFusedWithEltwise())
           kernel.arg(argIdx++,
                      WrapHandle((cl_mem) bottom[1]->gpu_data(), &ctx));
         if (IsFusedWithReLU())
           kernel.arg(argIdx++, fixup_arg_type(negative_slope_));
+        if (IsFusedWithPReLU())
+          kernel.arg(argIdx++, WrapHandle((cl_mem) slope_data, &ctx));
 
         int_tp kernel_offset = kernel_h_ * kernel_w_ *
                                (this->channels_ / this->group_) * M_
@@ -999,7 +1039,7 @@ float ConvolutionLayerSpatial<Dtype>::timed_convolve(
   timer.initted();
   timer.Start();
   cl_int err;
-  dbgPrint(std::cout << "Bechmarking kernel: " << config->kernelName
+  dbgPrint(std::cout << "Benchmarking kernel: " << config->kernelName
            << std::endl);
   tuned_ = true;
   double out_w = output_w_;
@@ -1159,13 +1199,18 @@ bool ConvolutionLayerSpatial<Dtype>::create_gemm_like_conv_kernel(
         " -DTILE_N_LAST_DIV8=" << (M_ % 32) / 8 <<
         " -D APPLY_BIAS=" << this->bias_term_;
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     optionsString << " -DFUSED_CONV_ELTWISE=1";
   }
 
   if (IsFusedWithReLU()) {
     optionsString << " -DFUSED_CONV_RELU=1";
   }
+
+  if (IsFusedWithPReLU()) {
+    optionsString << " -DFUSED_CONV_PRELU=1";
+  }
+
   optionsString << " -DINPUT_PAD_W=" << pad_w_ << " -DINPUT_PAD_H=" << pad_h_;
 
   size_t gz = num_batches;
@@ -1259,12 +1304,16 @@ bool ConvolutionLayerSpatial<Dtype>::create_winograd_conv_kernel(
                 << " -DTOTAL_NUM_FILTERS=" << (num_batches * ALIGN(num_output_maps, simd_size))
                 << " -DINPUT_PAD_W=" << pad_w_ << " -DINPUT_PAD_H=" << pad_h_;
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     optionsString << " -DFUSED_CONV_ELTWISE=1";
   }
 
   if (IsFusedWithReLU()) {
     optionsString << " -DFUSED_CONV_RELU=1";
+  }
+
+  if (IsFusedWithPReLU()) {
+    optionsString << " -DFUSED_CONV_PRELU=1";
   }
 
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
@@ -1343,12 +1392,16 @@ bool ConvolutionLayerSpatial<Dtype>::create_dw_conv_kernel(
                 << " -D " << kernelDef.c_str() << " -D DWCONV="
                 << kernel_name_;
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     optionsString << " -DFUSED_CONV_ELTWISE=1";
   }
 
   if (IsFusedWithReLU()) {
     optionsString << " -DFUSED_CONV_RELU=1";
+  }
+
+  if (IsFusedWithPReLU()) {
+    optionsString << " -DFUSED_CONV_PRELU=1";
   }
 
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
@@ -1441,12 +1494,16 @@ bool ConvolutionLayerSpatial<Dtype>::setup_IDLF(
 
   optionsString << " -DINPUT_PAD_W=" << pad_w_ << " -DINPUT_PAD_H=" << pad_h_;
 
-  if (IsFusedWithEltwiseReLU()) {
+  if (IsFusedWithEltwise()) {
     optionsString << " -DFUSED_CONV_ELTWISE=1";
   }
 
   if (IsFusedWithReLU()) {
     optionsString << " -DFUSED_CONV_RELU=1";
+  }
+
+  if (IsFusedWithPReLU()) {
+    optionsString << " -DFUSED_CONV_PRELU=1";
   }
 
   viennacl::ocl::context &ctx = viennacl::ocl::get_context(this->device_->id());
@@ -1646,21 +1703,15 @@ void ConvolutionLayerSpatial<Dtype>::setup_convolution(
           && !(this->group_ == 1 || M_ % 16 == 0))
         continue;
       int width_max, height_max, block_size_max;
-      if (simd_size == 8) {
-        width_max = 16;
-        height_max = 16;
-        block_size_max = 48;
-      } else {
-        width_max = 14;
-        height_max = 14;
-        block_size_max = 32;
-      }
+      width_max = 14;
+      height_max = 14;
+      block_size_max = 32;
       for (uint32_t width = width_max; width > 0; width--) {
         int candidate = 0;
         if (width > output_w_)
           continue;
         for (uint32_t height = height_max; height > 0; height--) {
-          if (width * height > block_size_max || height > output_h_)
+          if (height > output_h_)
             continue;
           // Only when the work items count is less than the device
           // max work items or the M_ is less than 16, we will tune
@@ -1671,10 +1722,16 @@ void ConvolutionLayerSpatial<Dtype>::setup_convolution(
                    static_cast<float>(width * height))
                  >= max_compute_units * 7 * 16))
             continue;
-          int tile_x = (kernel_w_ * dilation_w_
-                       + (width - 1) * stride_w_ + 3) & ~3;
+          int actual_tile_x = kernel_w_ * dilation_w_
+                              + (width - 1) * stride_w_ ;
+          int tile_x = (actual_tile_x + 3) & ~3;
+          if (actual_tile_x % 4 != 0 && kernelCnt >= 2)
+            continue;
           int tile_y = kernel_h_ * dilation_h_ + (height - 1) * stride_h_;
           if (tile_x > (4 * simd_size))
+            continue;
+          if ((width * height +
+             (tile_x * tile_y + simd_size - 1)/ simd_size) > block_size_max)
             continue;
           int tile_y_stride = (4 * simd_size) / tile_x;
 
@@ -1837,7 +1894,7 @@ void ConvolutionLayerSpatial<Dtype>::Forward_gpu(
     bias_ = this->blobs_[1]->gpu_data();
 
   int bottom_size = bottom.size();
-  if (IsFusedWithEltwiseReLU())
+  if (IsFusedWithEltwise() || IsFusedWithPReLU())
     bottom_size = 1;
   for (int_tp i = 0; i < bottom_size; ++i) {
     bottom_index_ = i;
@@ -1916,18 +1973,42 @@ void ConvolutionLayerSpatial<Dtype>::Backward_gpu(
 }
 
 template<typename Dtype>
+bool ConvolutionLayerSpatial<Dtype>::need_swizzle(
+       const kernelConfig &prev,
+       const kernelConfig &cur) {
+  // For IDLF kernel or GEMM_LIKE kernel if kernel type changed
+  // we need to do swizzle again.
+  if (prev.kernelType != cur.kernelType &&
+      (cur.kernelType == ConvType::IDLF ||
+       cur.kernelType == ConvType::GEMM_LIKE))
+    return true;
+  // For IDLF kernel or GEMM_LIKE kernel when the kernel type
+  // remains the same, but the simd size changed, we need to
+  // do swizzle again.
+  if (prev.kernelType == cur.kernelType) {
+    if (cur.kernelType == ConvType::IDLF &&
+        cur.workItem_output[2] != prev.workItem_output[2])
+      return true;
+    if (cur.kernelType == ConvType::GEMM_LIKE &&
+        cur.workItem_output[1] != prev.workItem_output[1])
+      return true;
+  }
+  return false;
+}
+
+template<typename Dtype>
 void ConvolutionLayerSpatial<Dtype>::load_cached_kernels(
     const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   // Generates static key_
   std::string previous_key = key_;
   generate_key();
-  ConvType prev_kernel_type = ConvType::BASIC;
+  kernelConfig prev_kernel_config;
   if (tuned_) {
     if (key_.compare(previous_key) == 0)
       return;
     tuned_ = false;
-    prev_kernel_type = bestKernelConfig->kernelType;
+    prev_kernel_config = *bestKernelConfig;
     viennacl::ocl::current_context().
       delete_program(bestKernelConfig->kernelName);
     delete bestKernelConfig;
@@ -1984,11 +2065,7 @@ void ConvolutionLayerSpatial<Dtype>::load_cached_kernels(
     cachedKernel >> foo;
     cachedKernel >> bestKernelConfig->use_null_local;
     tuned_ = true;
-    // If kernel type changed to type IDLF or GEMMLIKE, we need to reset the swizzled
-    // weights pointer to invalidate the previous swizzled weights data.
-    if (prev_kernel_type != bestKernelConfig->kernelType &&
-        (bestKernelConfig->kernelType == ConvType::IDLF ||
-         bestKernelConfig->kernelType == ConvType::GEMM_LIKE))
+    if (need_swizzle(prev_kernel_config, *bestKernelConfig))
       swizzled_weights_ = NULL;
   }
   return;
