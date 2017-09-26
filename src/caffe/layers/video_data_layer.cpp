@@ -37,7 +37,6 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
   video_type_ = video_data_param.video_type();
   skip_frames_ = video_data_param.skip_frames();
   CHECK_GE(skip_frames_, 0);
-
   // Read an image, and use it to initialize the top blob.
   cv::Mat cv_img;
   if (video_type_ == VideoDataParameter_VideoType_WEBCAM) {
@@ -49,6 +48,7 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
   } else if (video_type_ == VideoDataParameter_VideoType_VIDEO) {
     CHECK(video_data_param.has_video_file()) << "Must provide video file!";
     const string& video_file = video_data_param.video_file();
+#ifndef USE_FFMPEG_QSV
     if (!cap_.open(video_file)) {
       LOG(FATAL) << "Failed to open video: " << video_file;
     }
@@ -58,6 +58,15 @@ void VideoDataLayer<Dtype>::DataLayerSetUp(
     cap_ >> cv_img;
     // Set index back to the first frame.
     cap_.set(CV_CAP_PROP_POS_FRAMES, 0);
+#else
+    if (!qsv_cap_.open(video_file.c_str())) {
+    	LOG(FATAL) << "Failed to open video: " << video_file;
+    }
+    total_frames_ = qsv_cap_.get_total_frames();
+    processed_frames_ = 0;
+    qsv_cap_.getVideoFrame(cv_img);
+    qsv_cap_.seek(0);
+#endif
   } else {
     LOG(FATAL) << "Unknow video type!";
   }
@@ -121,7 +130,11 @@ void VideoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         raise(SIGINT);
       }
       ++processed_frames_;
+#ifndef USE_FFMPEG_QSV
       cap_ >> cv_img;
+#else
+      qsv_cap_.getVideoFrame(cv_img);
+#endif
     } else {
       LOG(FATAL) << "Unknown video type.";
     }
