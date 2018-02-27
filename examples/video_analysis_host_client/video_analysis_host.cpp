@@ -15,9 +15,58 @@
 #include <math.h>
 #include "caffe/data_transformer.hpp"
 #include <caffe/caffe.hpp>
+#include "caffe/mqueue.hpp"
+
+// using namespace caffe;
+using caffe::Blob;
+using caffe::Caffe;
+using caffe::Net;
+using caffe::Layer;
+using caffe::Solver;
+using caffe::shared_ptr;
+using caffe::string;
+using caffe::Timer;
+using caffe::vector;
+using caffe::device;
+using std::ostringstream;
+using caffe::DataTransformer;
 
 #if defined(USE_OPENCV)
-using namespace caffe;  // NOLINT(build/namespaces)
+// using namespace caffe;  // NOLINT(build/namespaces)
+using namespace simple_mqueue;
+
+struct WeightHdr {
+  int input_size;
+  int state_size;
+  int output_size;
+};
+
+template<typename ClientDtype, typename HostDtype>
+class DNNHostContext : public BasicContext<ClientDtype, HostDtype> {
+public:
+  DNNHostContext() {}
+
+  Message<ClientDtype> *prepare_message(MessageID id) {
+    if (id == InitWeight) {
+      return weights_;
+    }
+    return nullptr;
+  }
+
+  virtual ~DNNHostContext(void) {
+
+    if (weights_ != nullptr) {
+      delete [] weights_->mutable_memory()->mutable_data();
+      delete [] weights_->mutable_extra_memory()->mutable_data();
+      delete weights_;
+    }
+    weights_ = nullptr;
+  }
+
+private:
+   Message<ClientDtype> *weights_ = nullptr;
+};
+
 
 struct detect_result {
   int imgid;
@@ -55,11 +104,15 @@ public:
     for (int i = 0; i < input_blobs_.size(); i++)
       delete input_blobs_[i];
     delete data_transformer_;
+    if (host_node_ != nullptr)
+      delete host_node_;
+    if (host_ctx_ != nullptr)
+      delete host_ctx_;
   }
 
 private:
 
-  shared_ptr<Net<Dtype> > net_;
+  caffe::shared_ptr<Net<Dtype> > net_;
   cv::Size input_blob_size_;
   cv::Size image_size_;
   int num_channels_;
@@ -70,6 +123,20 @@ private:
   const vector<cv::Mat> *origin_imgs_;
   DataTransformer<Dtype> *data_transformer_;
   ColorFormat input_color_format_;
+
+  std::string host_ip_;
+  uint16_t host_port_;
+  int client_batch_size_;
+  int client_num_;
+
+  DNNHostContext<Dtype, Dtype> *host_ctx_ = nullptr;
+  // Host node to distribute dnn work load to multiple clients.
+  Node<Dtype, Dtype> *host_node_ = nullptr;
+
+  unsigned int output_size_;
+
+  Message<Dtype>* input_message_ = nullptr;
+  Message<Dtype>* output_message_ = nullptr;
 };
 
 template <typename Dtype>
@@ -77,19 +144,33 @@ Detector<Dtype>::Detector(const string& model_file,
                    const string& weights_file,
                    int gpu,
                    int batch_size) {
-    // Set device id and mode
-  if (gpu != -1) {
-    std::cout << "Use GPU with device ID " << gpu << std::endl;
-    Caffe::set_mode(Caffe::GPU);
-    Caffe::SetDevice(gpu);
+  // Set the host IP address.
+  if (std::getenv("INTEL_VCA_LSTM_HOST_IP")) {
+    host_ip_ = std::getenv("INTEL_VCA_LSTM_HOST_IP");
+  } else {
+    host_ip_ = "127.0.0.1";
   }
-  else {
-    std::cout << "Use CPU" << std::endl;
-    Caffe::set_mode(Caffe::CPU);
+  // Set the host server port number
+  if (std::getenv("INTEL_VCA_LSTM_HOST_PORT")) {
+    host_port_ = atoi(std::getenv("INTEL_VCA_LSTM_HOST_PORT"));
+  } else {
+    host_port_ = 50000;
   }
+  // Set how many clients(nodes) we have
+  if (std::getenv("INTEL_VCA_LSTM_CLIENT_NUM")) {
+    client_num_ = atoi(std::getenv("INTEL_VCA_LSTM_CLIENT_NUM"));
+  } else {
+    client_num_ = 1;
+  }
+  // Set batch size for each client.
+  client_batch_size_ = 16;
+
+  std::cout << "Use CPU" << std::endl;
+  Caffe::set_mode(Caffe::CPU);
+
   batch_size_ = batch_size;
   /* Load the network. */
-  net_.reset(new Net<Dtype>(model_file, TEST, Caffe::GetDefaultDevice()));
+  net_.reset(new Net<Dtype>(model_file, caffe::TEST, Caffe::GetDefaultDevice()));
   net_->CopyTrainedLayersFrom(weights_file);
 
   CHECK_EQ(net_->num_outputs(), 1) << "Network should have exactly one output.";
@@ -103,7 +184,7 @@ Detector<Dtype>::Detector(const string& model_file,
   // Check whether the model we will using.
   // Different models need different preprocessing parameters.
   const shared_ptr<Layer<Dtype>> output_layer = net_->layers().back();
-  TransformationParameter transform_param;
+  caffe::TransformationParameter transform_param;
   caffe::ResizeParameter *resize_param = transform_param.mutable_resize_param();
   faster_rcnn = false;
   if (output_layer->layer_param().type() == "FasterRcnnDetectionOutput") {
@@ -149,8 +230,16 @@ Detector<Dtype>::Detector(const string& model_file,
   resize_param->set_prob(1.0);
   resize_param->add_interp_mode(caffe::ResizeParameter_Interp_mode_LINEAR);
   data_transformer_ = new DataTransformer<Dtype>(transform_param,
-                                                 TEST,
+                                                 caffe::TEST,
                                                  Caffe::GetDefaultDevice());
+
+  host_ctx_ = new DNNHostContext<Dtype, Dtype>();
+  host_ctx_->set_batch_size(client_batch_size_);
+  host_node_ = new Node<Dtype, Dtype>(NodeTypeHost,
+                                          host_ctx_,
+                                          client_num_);
+  host_node_->set_host_addr(host_ip_.c_str(), host_port_);
+  host_node_->Run();
 }
 
 static void
@@ -209,7 +298,7 @@ void Detector<Dtype>::Preprocess(const vector<cv::Mat> &imgs) {
     input_blob_size_.width = (int)(scale * image_size_.width);
     input_blob_size_.height = (int)(scale * image_size_.height);
 
-    TransformationParameter transform_param;
+    caffe::TransformationParameter transform_param;
     caffe::ResizeParameter *resize_param = transform_param.mutable_resize_param();
 
     transform_param.add_mean_value(102.9801);
@@ -222,7 +311,7 @@ void Detector<Dtype>::Preprocess(const vector<cv::Mat> &imgs) {
     resize_param->set_prob(1.0);
     resize_param->add_interp_mode(caffe::ResizeParameter_Interp_mode_LINEAR);
     data_transformer_ = new DataTransformer<Dtype>(transform_param,
-                                                 TEST,
+                                                 caffe::TEST,
                                                  Caffe::GetDefaultDevice());
   }
 
@@ -281,10 +370,12 @@ void Detector<Dtype>::ShowResult(const vector<cv::Mat> &imgs,
                   cv::Scalar(0, 255, 255));
     }
     cv::imshow("detections", img);
+#if 1
     int wait_ms = step_mode ? 0 : 1;
     int key = cv::waitKey(static_cast<char>(wait_ms));
     if (key == 'q')
       exit(1);
+#endif
   }
 }
 
@@ -323,16 +414,30 @@ void Detector<Dtype>::Detect(vector<vector<detect_result>> &all_objects,
   }
 
   net_->Reshape();
-
+  Blob<Dtype>* result_blob = net_->output_blobs()[0];
+  std::vector<int> out_shape(4, 1);
+  for(int i = 0; i < result_blob->num_axes(); ++i) {
+    out_shape[i] = result_blob->shape()[i];
+  }
+  output_message_ = new Message<Dtype>(OutputData, out_shape[0], out_shape[1], 21, out_shape[3]);
   for (int batch_id = 0; batch_id < batch_to_detect; batch_id++) {
     int real_batch_id = batch_id % input_blobs_.size();
     int batch_size = input_blobs_[real_batch_id]->num();
-    input_layer->ReshapeLike(*input_blobs_[real_batch_id]);
-    input_layer->ShareData(*input_blobs_[real_batch_id]);
-    net_->Forward();
-    Blob<Dtype>* result_blob = net_->output_blobs()[0];
-    const Dtype* result = result_blob->cpu_data();
-    const int num_det = result_blob->height();
+
+    std::vector<int> in_shape = input_blobs_[real_batch_id]->shape();
+    input_message_ = new Message<Dtype>(InputData, in_shape[0], in_shape[1], in_shape[2], in_shape[3], input_blobs_[real_batch_id]->mutable_cpu_data());
+
+    vector<Message<Dtype> *> input_messages;
+    input_messages.push_back(input_message_);
+
+    vector<Message<Dtype> *> output_messages;
+    output_messages.push_back(output_message_);
+
+    // Ready to send messages to clients.
+    host_node_->Forward(input_messages, output_messages);
+
+    const Dtype* result = output_message_->memory()->data();
+    const int num_det = output_message_->memory()->shape()[2];
     vector<vector<detect_result>> objects(batch_size);
     for (int k = 0; k < num_det * 7; k += 7) {
       detect_result object;
@@ -369,9 +474,13 @@ void Detector<Dtype>::Detect(vector<vector<detect_result>> &all_objects,
     }
     if (visualize)
       ShowResult(*origin_imgs_, objects, step_mode);
-    all_objects.insert(all_objects.end(), objects.begin(), objects.end());
+      all_objects.insert(all_objects.end(), objects.begin(), objects.end());
+
+    delete input_message_;
+    // delete output_message_;
   }
 
+  delete output_message_;
   delete iminfo_blob;
 }
 
